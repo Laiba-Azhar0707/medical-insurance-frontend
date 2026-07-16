@@ -222,6 +222,44 @@ function Dashboard({ token, user, onLogout }) {
                   </div>
                 ))}
               </div>
+
+              {result.deduction_summary && (
+                <div style={styles.deductionSection}>
+                  <h4 style={styles.deductionTitle}>Claim Financial Summary</h4>
+
+                  <div style={styles.summaryRow}>
+                    <span style={styles.summaryLabel}>Total Flagged (Unprescribed)</span>
+                    <span style={styles.summaryAmount}>
+                      ${result.deduction_summary.total_unprescribed_amount.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div style={styles.summaryRow}>
+                    <span style={styles.summaryLabel}>Action</span>
+                    <span style={styles.actionTag}>
+                      {result.deduction_summary.action_type === 'auto_deduct'
+                        ? 'Auto-deducted from reimbursement'
+                        : 'Return notice issued'}
+                    </span>
+                  </div>
+
+                  {result.deduction_summary.deductions.length > 0 && (
+                    <div style={styles.deductionList}>
+                      {result.deduction_summary.deductions.map((d, idx) => (
+                        <div key={idx} style={styles.deductionItem}>
+                          <div style={styles.deductionItemHeader}>
+                            <span style={styles.deductionItemName}>{d.item_name}</span>
+                            {d.has_price && (
+                              <span style={styles.deductionItemAmount}>-${d.amount.toFixed(2)}</span>
+                            )}
+                          </div>
+                          <div style={styles.deductionItemReason}>{d.reason}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -516,6 +554,72 @@ const styles = {
     fontSize: '12px',
     color: '#b45309',
     fontWeight: 500,
+  },
+  deductionSection: {
+    marginTop: '24px',
+    paddingTop: '20px',
+    borderTop: '1px solid #eef0f3',
+  },
+  deductionTitle: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#111827',
+    margin: '0 0 14px 0',
+  },
+  summaryRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '10px',
+  },
+  summaryLabel: {
+    fontSize: '13px',
+    color: '#6b7280',
+  },
+  summaryAmount: {
+    fontSize: '15px',
+    fontWeight: 700,
+    color: '#b91c1c',
+  },
+  actionTag: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#1f3864',
+    background: '#eef2f8',
+    padding: '4px 10px',
+    borderRadius: '999px',
+  },
+  deductionList: {
+    marginTop: '14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  deductionItem: {
+    padding: '10px 12px',
+    background: '#fef2f2',
+    border: '1px solid #fecaca',
+    borderRadius: '8px',
+  },
+  deductionItemHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  deductionItemName: {
+    fontSize: '12.5px',
+    fontWeight: 600,
+    color: '#111827',
+  },
+  deductionItemAmount: {
+    fontSize: '12.5px',
+    fontWeight: 700,
+    color: '#b91c1c',
+  },
+  deductionItemReason: {
+    fontSize: '11.5px',
+    color: '#9ca3af',
+    marginTop: '2px',
   },
 };
 
