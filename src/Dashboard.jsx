@@ -227,6 +227,17 @@ function Dashboard({ token, user, onLogout }) {
                 <div style={styles.deductionSection}>
                   <h4 style={styles.deductionTitle}>Claim Financial Summary</h4>
 
+                  <div style={styles.approvedBox}>
+                    <span style={styles.approvedLabel}>
+                      {result.deduction_summary.action_type === 'auto_deduct'
+                        ? 'Amount Approved for Reimbursement'
+                        : 'Amount to Be Returned'}
+                    </span>
+                    <span style={styles.approvedAmount}>
+                      ${result.deduction_summary.total_unprescribed_amount.toFixed(2)}
+                    </span>
+                  </div>
+
                   <div style={styles.summaryRow}>
                     <span style={styles.summaryLabel}>Total Flagged (Unprescribed)</span>
                     <span style={styles.summaryAmount}>
@@ -565,6 +576,29 @@ const styles = {
     fontWeight: 700,
     color: '#111827',
     margin: '0 0 14px 0',
+  },
+  approvedBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    background: '#f0f7ff',
+    border: '1px solid #bfdbfe',
+    borderRadius: '10px',
+    padding: '16px',
+    marginBottom: '16px',
+  },
+  approvedLabel: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#1f3864',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+    marginBottom: '4px',
+  },
+  approvedAmount: {
+    fontSize: '26px',
+    fontWeight: 700,
+    color: '#1f3864',
   },
   summaryRow: {
     display: 'flex',

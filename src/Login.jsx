@@ -5,6 +5,7 @@ function Login({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitHover, setSubmitHover] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -63,12 +64,32 @@ function Login({ onLoginSuccess }) {
             />
           </div>
 
-          {error && <div style={styles.errorBox}>{error}</div>}
+          {error && <div style={styles.errorBox}>⚠ {error}</div>}
 
-          <button type="submit" style={{ ...styles.button, opacity: loading ? 0.7 : 1 }} disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
+          <button
+            type="submit"
+            style={{
+              ...styles.button,
+              ...(submitHover && !loading ? styles.buttonHover : {}),
+              opacity: loading ? 0.75 : 1,
+              cursor: loading ? 'default' : 'pointer',
+            }}
+            disabled={loading}
+            onMouseEnter={() => setSubmitHover(true)}
+            onMouseLeave={() => setSubmitHover(false)}
+          >
+            {loading ? (
+              <span style={styles.buttonContent}>
+                <span style={styles.spinner} />
+                Signing in...
+              </span>
+            ) : (
+              'Sign in'
+            )}
           </button>
         </form>
+
+        <p style={styles.footnote}>Secured with JWT authentication</p>
       </div>
     </div>
   );
@@ -94,7 +115,7 @@ const styles = {
   logoCircle: {
     width: '52px',
     height: '52px',
-    borderRadius: '50%',
+    borderRadius: '14px',
     background: '#1f3864',
     color: '#fff',
     fontSize: '26px',
@@ -135,9 +156,8 @@ const styles = {
     padding: '11px 13px',
     fontSize: '14px',
     border: '1px solid #d1d5db',
-    borderRadius: '8px',
+    borderRadius: '9px',
     outline: 'none',
-    transition: 'border-color 0.15s',
   },
   button: {
     marginTop: '6px',
@@ -147,9 +167,26 @@ const styles = {
     background: '#1f3864',
     color: 'white',
     border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
+    borderRadius: '9px',
     transition: 'background 0.15s',
+  },
+  buttonHover: {
+    background: '#16294d',
+  },
+  buttonContent: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+  },
+  spinner: {
+    width: '15px',
+    height: '15px',
+    border: '2px solid rgba(255,255,255,0.4)',
+    borderTopColor: '#fff',
+    borderRadius: '50%',
+    display: 'inline-block',
+    animation: 'spin 0.7s linear infinite',
   },
   errorBox: {
     background: '#fef2f2',
@@ -158,6 +195,11 @@ const styles = {
     padding: '10px 12px',
     borderRadius: '8px',
     border: '1px solid #fecaca',
+  },
+  footnote: {
+    marginTop: '22px',
+    fontSize: '11px',
+    color: '#9ca3af',
   },
 };
 
