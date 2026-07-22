@@ -33,6 +33,17 @@ function Dashboard({ token, user, onLogout }) {
     }
   };
 
+  const submitClaimRequest = async (formData) => {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/claims`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+
+    if (!response.ok) throw new Error('Claim submission failed');
+    return response.json();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -53,18 +64,24 @@ function Dashboard({ token, user, onLogout }) {
     });
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/claims`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Claim submission failed');
-
-      const data = await response.json();
+      const data = await submitClaimRequest(formData);
       setResult(data);
     } catch (err) {
-      setError(err.message);
+      // "Failed to fetch" is a network-level error (dropped connection,
+      // flaky wifi, corporate proxy timeout) rather than a real server
+      // error — worth one automatic retry before bothering the user.
+      const isNetworkError = err instanceof TypeError && err.message.includes('fetch');
+
+      if (isNetworkError) {
+        try {
+          const retryData = await submitClaimRequest(formData);
+          setResult(retryData);
+        } catch (retryErr) {
+          setError('Claim submission failed after retrying. This can happen on slow or unstable connections — please try again.');
+        }
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -183,6 +200,9 @@ function Dashboard({ token, user, onLogout }) {
             <div style={styles.emptyState}>
               <span style={{ ...styles.spinner, ...styles.spinnerLarge }} />
               <div style={styles.emptyStateText}>Reading documents and extracting data...</div>
+              <div style={{ ...styles.emptyStateText, fontSize: '0.85em', opacity: 0.7, marginTop: '4px' }}>
+                This usually takes 20–45 seconds — please don't close this tab
+              </div>
             </div>
           )}
 
