@@ -317,4 +317,412 @@ function AdminPanel({ token }) {
             {!usersLoading && !usersError && (
               <div style={styles.userList}>
                 {users?.map((u) => (
-                  <div key={u.id} style={{ ...styles.userRow, ...(u.is_active ===
+                  <div key={u.id} style={{ ...styles.userRow, ...(u.is_active === false ? styles.userRowInactive : {}) }}>
+                    <div style={styles.userRowTop}>
+                      <div>
+                        <div style={styles.userName}>{u.name}</div>
+                        <div style={styles.userEmail}>{u.email}</div>
+                      </div>
+                      <div style={styles.userTags}>
+                        <span style={{ ...styles.roleTag, ...(u.role === 'admin' ? styles.roleAdmin : styles.roleUser) }}>
+                          {u.role}
+                        </span>
+                        {u.is_active === false && <span style={styles.inactiveTag}>Deactivated</span>}
+                      </div>
+                    </div>
+                    <div style={styles.userActions}>
+                      <button
+                        onClick={() => handleToggleActive(u.id)}
+                        disabled={userActionId === u.id}
+                        style={u.is_active === false ? styles.reactivateButton : styles.deactivateButton}
+                      >
+                        {userActionId === u.id ? 'Saving...' : u.is_active === false ? 'Reactivate' : 'Deactivate'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(u.id, u.name)}
+                        disabled={userActionId === u.id}
+                        style={styles.deleteButton}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const styles = {
+  pageHeader: {
+    marginBottom: '20px',
+  },
+  pageTitle: {
+    fontFamily: "'Fraunces', serif",
+    fontSize: '24px',
+    fontWeight: 600,
+    color: '#16232E',
+    margin: '0 0 6px 0',
+  },
+  pageSubtitle: {
+    fontSize: '13.5px',
+    color: '#667380',
+    margin: 0,
+  },
+  tabs: {
+    display: 'inline-flex',
+    gap: '2px',
+    background: '#ffffff',
+    padding: '4px',
+    borderRadius: '999px',
+    border: '1px solid #E7EBEE',
+    marginBottom: '24px',
+  },
+  tabButton: {
+    padding: '9px 20px',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#667380',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  tabButtonActive: {
+    background: '#16323D',
+    color: '#ffffff',
+  },
+  list: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+    gap: '16px',
+  },
+  card: {
+    background: '#ffffff',
+    borderRadius: '10px',
+    padding: '20px',
+    boxShadow: '0 1px 3px rgba(22, 50, 61, 0.06), 0 8px 24px rgba(22, 50, 61, 0.06)',
+    border: '1px solid #E7EBEE',
+  },
+  cardTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '16px',
+    paddingBottom: '16px',
+    borderBottom: '1px solid #EEF1F3',
+    gap: '10px',
+  },
+  claimId: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#16232E',
+  },
+  claimDate: {
+    fontSize: '11px',
+    color: '#9AA5AD',
+    marginTop: '3px',
+  },
+  stamp: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '10px',
+    fontWeight: 600,
+    letterSpacing: '1.2px',
+    textTransform: 'uppercase',
+    padding: '5px 12px',
+    borderRadius: '3px',
+    border: '2px double currentColor',
+    transform: 'rotate(-3deg)',
+    display: 'inline-block',
+    flexShrink: 0,
+  },
+  stampOk: {
+    color: '#2F8F6E',
+    background: 'rgba(47, 143, 110, 0.07)',
+  },
+  stampReview: {
+    color: '#B45309',
+    background: 'rgba(180, 83, 9, 0.07)',
+  },
+  cardBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginBottom: '16px',
+  },
+  metaRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  metaLabel: {
+    fontSize: '12px',
+    color: '#9AA5AD',
+  },
+  metaValue: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#16232E',
+  },
+  metaAmount: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '13.5px',
+    fontWeight: 600,
+    color: '#16323D',
+  },
+  reviewRow: {
+    display: 'flex',
+    gap: '8px',
+    paddingTop: '14px',
+    borderTop: '1px solid #EEF1F3',
+  },
+  approveButton: {
+    flex: 1,
+    padding: '9px',
+    fontSize: '12.5px',
+    fontWeight: 600,
+    background: '#EEF6F4',
+    color: '#2F8F6E',
+    border: '1px solid #C3E0D8',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  rejectButton: {
+    flex: 1,
+    padding: '9px',
+    fontSize: '12.5px',
+    fontWeight: 600,
+    background: '#FDF1EC',
+    color: '#9A3F12',
+    border: '1px solid #F3CFB8',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  adminTag: {
+    fontSize: '11.5px',
+    fontWeight: 600,
+    padding: '5px 14px',
+    borderRadius: '999px',
+  },
+  adminApproved: {
+    background: '#EEF6F4',
+    color: '#2F8F6E',
+  },
+  adminRejected: {
+    background: '#FDF1EC',
+    color: '#9A3F12',
+  },
+  usersGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)',
+    gap: '20px',
+    alignItems: 'start',
+  },
+  cardTitle: {
+    fontFamily: "'Fraunces', serif",
+    fontSize: '17px',
+    fontWeight: 600,
+    color: '#16232E',
+    margin: '0 0 18px 0',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  label: {
+    fontSize: '11.5px',
+    fontWeight: 600,
+    color: '#48545F',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  input: {
+    padding: '11px 13px',
+    fontSize: '14px',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+    border: '1.5px solid #E3E8EB',
+    borderRadius: '10px',
+    outline: 'none',
+    background: '#FAFBFC',
+  },
+  submitButton: {
+    marginTop: '4px',
+    padding: '12px',
+    fontSize: '14px',
+    fontWeight: 600,
+    background: '#16323D',
+    color: 'white',
+    border: 'none',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  userList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  userRow: {
+    padding: '14px',
+    background: '#FAFBFC',
+    borderRadius: '8px',
+    border: '1px solid #EEF1F3',
+  },
+  userRowInactive: {
+    background: '#F7F5F1',
+    opacity: 0.75,
+  },
+  userRowTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '10px',
+  },
+  userTags: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '5px',
+    alignItems: 'flex-end',
+  },
+  userName: {
+    fontSize: '13.5px',
+    fontWeight: 600,
+    color: '#16232E',
+  },
+  userEmail: {
+    fontSize: '11.5px',
+    color: '#9AA5AD',
+    marginTop: '2px',
+  },
+  roleTag: {
+    fontSize: '10.5px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    padding: '4px 11px',
+    borderRadius: '999px',
+  },
+  roleUser: {
+    background: '#EEF3F4',
+    color: '#16323D',
+  },
+  roleAdmin: {
+    background: '#FEF6EC',
+    color: '#B45309',
+  },
+  inactiveTag: {
+    fontSize: '10px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    padding: '3px 9px',
+    borderRadius: '999px',
+    background: '#F1F4F5',
+    color: '#9AA5AD',
+  },
+  userActions: {
+    display: 'flex',
+    gap: '8px',
+    paddingTop: '10px',
+    borderTop: '1px solid #EEF1F3',
+  },
+  deactivateButton: {
+    flex: 1,
+    padding: '7px',
+    fontSize: '11.5px',
+    fontWeight: 600,
+    background: '#FEF6EC',
+    color: '#B45309',
+    border: '1px solid #F3D9AE',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  reactivateButton: {
+    flex: 1,
+    padding: '7px',
+    fontSize: '11.5px',
+    fontWeight: 600,
+    background: '#EEF6F4',
+    color: '#2F8F6E',
+    border: '1px solid #C3E0D8',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  deleteButton: {
+    flex: 1,
+    padding: '7px',
+    fontSize: '11.5px',
+    fontWeight: 600,
+    background: '#FDF1EC',
+    color: '#9A3F12',
+    border: '1px solid #F3CFB8',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  emptyState: {
+    background: '#ffffff',
+    borderRadius: '10px',
+    border: '1.5px dashed #D5DCE1',
+    padding: '60px 24px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '14px',
+    textAlign: 'center',
+  },
+  emptyStateIcon: {
+    fontSize: '36px',
+    opacity: 0.4,
+  },
+  emptyStateText: {
+    fontSize: '13.5px',
+    color: '#9AA5AD',
+  },
+  spinner: {
+    width: '32px',
+    height: '32px',
+    border: '3px solid #E7EBEE',
+    borderTopColor: '#16323D',
+    borderRadius: '50%',
+    display: 'inline-block',
+    animation: 'spin 0.7s linear infinite',
+  },
+  errorBox: {
+    background: '#FDF1EC',
+    color: '#9A3F12',
+    fontSize: '13px',
+    padding: '11px 13px',
+    borderRadius: '8px',
+    border: '1px solid #F3CFB8',
+    marginBottom: '12px',
+  },
+  successBox: {
+    background: '#EEF6F4',
+    color: '#2F8F6E',
+    fontSize: '13px',
+    padding: '11px 13px',
+    borderRadius: '8px',
+    border: '1px solid #C3E0D8',
+    marginBottom: '12px',
+  },
+};
+
+export default AdminPanel;
