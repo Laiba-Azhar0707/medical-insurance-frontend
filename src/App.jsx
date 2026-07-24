@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';
 import Layout from './Layout';
+import AdminLayout from './AdminLayout';
 import Dashboard from './Dashboard';
 import ClaimHistory from './ClaimHistory';
 import AdminPanel from './AdminPanel';
@@ -33,7 +34,7 @@ function App() {
           path="/"
           element={
             token ? (
-              <Navigate to="/dashboard" replace />
+              <Navigate to={user?.role === 'admin' ? '/admin' : '/dashboard'} replace />
             ) : (
               <Login onLoginSuccess={(t, u) => { setToken(t); setUser(u); }} />
             )
@@ -55,7 +56,7 @@ function App() {
           path="/admin"
           element={
             <AdminRoute token={token} user={user}>
-              <Layout user={user} onLogout={handleLogout} />
+              <AdminLayout user={user} onLogout={handleLogout} />
             </AdminRoute>
           }
         >
