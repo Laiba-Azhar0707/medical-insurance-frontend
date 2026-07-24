@@ -17,6 +17,8 @@ function AdminPanel({ token }) {
   const [users, setUsers] = useState(null);
   const [usersError, setUsersError] = useState('');
   const [usersLoading, setUsersLoading] = useState(true);
+  const [userActionId, setUserActionId] = useState(null);
+  const [userActionError, setUserActionError] = useState('');
 
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'user' });
   const [createError, setCreateError] = useState('');
@@ -100,6 +102,49 @@ function AdminPanel({ token }) {
       setCreateError(err.message);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleToggleActive = async (userId) => {
+    setUserActionId(userId);
+    setUserActionError('');
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${userId}/toggle-active`, {
+        method: 'PATCH',
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || 'We couldn\'t update that user. Please try again.');
+      }
+      const updated = await response.json();
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? { ...u, is_active: updated.is_active } : u)));
+    } catch (err) {
+      setUserActionError(err.message);
+    } finally {
+      setUserActionId(null);
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (!window.confirm(`Delete ${userName}? This can't be undone.`)) return;
+
+    setUserActionId(userId);
+    setUserActionError('');
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || 'We couldn\'t delete that user. Please try again.');
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    } catch (err) {
+      setUserActionError(err.message);
+    } finally {
+      setUserActionId(null);
     }
   };
 
@@ -268,329 +313,8 @@ function AdminPanel({ token }) {
             <h4 style={styles.cardTitle}>All Users</h4>
             {usersLoading && <div style={styles.emptyStateText}>Loading...</div>}
             {usersError && <div style={styles.errorBox}>⚠ {usersError}</div>}
+            {userActionError && <div style={styles.errorBox}>⚠ {userActionError}</div>}
             {!usersLoading && !usersError && (
               <div style={styles.userList}>
                 {users?.map((u) => (
-                  <div key={u.id} style={styles.userRow}>
-                    <div>
-                      <div style={styles.userName}>{u.name}</div>
-                      <div style={styles.userEmail}>{u.email}</div>
-                    </div>
-                    <span style={{ ...styles.roleTag, ...(u.role === 'admin' ? styles.roleAdmin : styles.roleUser) }}>
-                      {u.role}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const styles = {
-  pageHeader: {
-    marginBottom: '20px',
-  },
-  pageTitle: {
-    fontFamily: "'Fraunces', serif",
-    fontSize: '24px',
-    fontWeight: 600,
-    color: '#16232E',
-    margin: '0 0 6px 0',
-  },
-  pageSubtitle: {
-    fontSize: '13.5px',
-    color: '#667380',
-    margin: 0,
-  },
-  tabs: {
-    display: 'inline-flex',
-    gap: '2px',
-    background: '#ffffff',
-    padding: '4px',
-    borderRadius: '999px',
-    border: '1px solid #E7EBEE',
-    marginBottom: '24px',
-  },
-  tabButton: {
-    padding: '9px 20px',
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#667380',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: '999px',
-    cursor: 'pointer',
-    fontFamily: "'IBM Plex Sans', sans-serif",
-  },
-  tabButtonActive: {
-    background: '#16323D',
-    color: '#ffffff',
-  },
-  list: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-    gap: '16px',
-  },
-  card: {
-    background: '#ffffff',
-    borderRadius: '10px',
-    padding: '20px',
-    boxShadow: '0 1px 3px rgba(22, 50, 61, 0.06), 0 8px 24px rgba(22, 50, 61, 0.06)',
-    border: '1px solid #E7EBEE',
-  },
-  cardTop: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '16px',
-    paddingBottom: '16px',
-    borderBottom: '1px solid #EEF1F3',
-    gap: '10px',
-  },
-  claimId: {
-    fontFamily: "'IBM Plex Mono', monospace",
-    fontSize: '15px',
-    fontWeight: 600,
-    color: '#16232E',
-  },
-  claimDate: {
-    fontSize: '11px',
-    color: '#9AA5AD',
-    marginTop: '3px',
-  },
-  stamp: {
-    fontFamily: "'IBM Plex Mono', monospace",
-    fontSize: '10px',
-    fontWeight: 600,
-    letterSpacing: '1.2px',
-    textTransform: 'uppercase',
-    padding: '5px 12px',
-    borderRadius: '3px',
-    border: '2px double currentColor',
-    transform: 'rotate(-3deg)',
-    display: 'inline-block',
-    flexShrink: 0,
-  },
-  stampOk: {
-    color: '#2F8F6E',
-    background: 'rgba(47, 143, 110, 0.07)',
-  },
-  stampReview: {
-    color: '#B45309',
-    background: 'rgba(180, 83, 9, 0.07)',
-  },
-  cardBody: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-    marginBottom: '16px',
-  },
-  metaRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  metaLabel: {
-    fontSize: '12px',
-    color: '#9AA5AD',
-  },
-  metaValue: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#16232E',
-  },
-  metaAmount: {
-    fontFamily: "'IBM Plex Mono', monospace",
-    fontSize: '13.5px',
-    fontWeight: 600,
-    color: '#16323D',
-  },
-  reviewRow: {
-    display: 'flex',
-    gap: '8px',
-    paddingTop: '14px',
-    borderTop: '1px solid #EEF1F3',
-  },
-  approveButton: {
-    flex: 1,
-    padding: '9px',
-    fontSize: '12.5px',
-    fontWeight: 600,
-    background: '#EEF6F4',
-    color: '#2F8F6E',
-    border: '1px solid #C3E0D8',
-    borderRadius: '999px',
-    cursor: 'pointer',
-    fontFamily: "'IBM Plex Sans', sans-serif",
-  },
-  rejectButton: {
-    flex: 1,
-    padding: '9px',
-    fontSize: '12.5px',
-    fontWeight: 600,
-    background: '#FDF1EC',
-    color: '#9A3F12',
-    border: '1px solid #F3CFB8',
-    borderRadius: '999px',
-    cursor: 'pointer',
-    fontFamily: "'IBM Plex Sans', sans-serif",
-  },
-  adminTag: {
-    fontSize: '11.5px',
-    fontWeight: 600,
-    padding: '5px 14px',
-    borderRadius: '999px',
-  },
-  adminApproved: {
-    background: '#EEF6F4',
-    color: '#2F8F6E',
-  },
-  adminRejected: {
-    background: '#FDF1EC',
-    color: '#9A3F12',
-  },
-  usersGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)',
-    gap: '20px',
-    alignItems: 'start',
-  },
-  cardTitle: {
-    fontFamily: "'Fraunces', serif",
-    fontSize: '17px',
-    fontWeight: 600,
-    color: '#16232E',
-    margin: '0 0 18px 0',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '14px',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  label: {
-    fontSize: '11.5px',
-    fontWeight: 600,
-    color: '#48545F',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  },
-  input: {
-    padding: '11px 13px',
-    fontSize: '14px',
-    fontFamily: "'IBM Plex Sans', sans-serif",
-    border: '1.5px solid #E3E8EB',
-    borderRadius: '10px',
-    outline: 'none',
-    background: '#FAFBFC',
-  },
-  submitButton: {
-    marginTop: '4px',
-    padding: '12px',
-    fontSize: '14px',
-    fontWeight: 600,
-    background: '#16323D',
-    color: 'white',
-    border: 'none',
-    borderRadius: '999px',
-    cursor: 'pointer',
-    fontFamily: "'IBM Plex Sans', sans-serif",
-  },
-  userList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-  },
-  userRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '12px 14px',
-    background: '#FAFBFC',
-    borderRadius: '8px',
-    border: '1px solid #EEF1F3',
-  },
-  userName: {
-    fontSize: '13.5px',
-    fontWeight: 600,
-    color: '#16232E',
-  },
-  userEmail: {
-    fontSize: '11.5px',
-    color: '#9AA5AD',
-    marginTop: '2px',
-  },
-  roleTag: {
-    fontSize: '10.5px',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    padding: '4px 11px',
-    borderRadius: '999px',
-  },
-  roleUser: {
-    background: '#EEF3F4',
-    color: '#16323D',
-  },
-  roleAdmin: {
-    background: '#FEF6EC',
-    color: '#B45309',
-  },
-  emptyState: {
-    background: '#ffffff',
-    borderRadius: '10px',
-    border: '1.5px dashed #D5DCE1',
-    padding: '60px 24px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '14px',
-    textAlign: 'center',
-  },
-  emptyStateIcon: {
-    fontSize: '36px',
-    opacity: 0.4,
-  },
-  emptyStateText: {
-    fontSize: '13.5px',
-    color: '#9AA5AD',
-  },
-  spinner: {
-    width: '32px',
-    height: '32px',
-    border: '3px solid #E7EBEE',
-    borderTopColor: '#16323D',
-    borderRadius: '50%',
-    display: 'inline-block',
-    animation: 'spin 0.7s linear infinite',
-  },
-  errorBox: {
-    background: '#FDF1EC',
-    color: '#9A3F12',
-    fontSize: '13px',
-    padding: '11px 13px',
-    borderRadius: '8px',
-    border: '1px solid #F3CFB8',
-    marginBottom: '12px',
-  },
-  successBox: {
-    background: '#EEF6F4',
-    color: '#2F8F6E',
-    fontSize: '13px',
-    padding: '11px 13px',
-    borderRadius: '8px',
-    border: '1px solid #C3E0D8',
-    marginBottom: '12px',
-  },
-};
-
-export default AdminPanel;
+                  <div key={u.id} style={{ ...styles.userRow, ...(u.is_active ===
