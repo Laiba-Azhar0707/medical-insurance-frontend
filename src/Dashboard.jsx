@@ -7,12 +7,8 @@ const DOC_CONFIG = {
   consultation_receipt: { label: 'Consultation Receipt', icon: '🩺' },
 };
 
-// Maps technical failures to messages a non-technical user can actually act on.
-// Falls back to a generic message rather than ever showing raw error text.
 function getFriendlyErrorMessage(status, backendDetail) {
   if (status === 400 && backendDetail) {
-    // These are our own backend's validation messages (e.g. "upload at
-    // least one bill") — already written to be user-facing, safe to show.
     return backendDetail;
   }
   if (status === 401) {
@@ -27,7 +23,7 @@ function getFriendlyErrorMessage(status, backendDetail) {
   return 'We couldn\'t submit your claim. Please check your documents and try again.';
 }
 
-function Dashboard({ token, user, onLogout }) {
+function Dashboard({ token, user }) {
   const [claimType, setClaimType] = useState('reimbursement');
   const [filesByType, setFilesByType] = useState({
     prescription: [],
@@ -66,10 +62,9 @@ function Dashboard({ token, user, onLogout }) {
         const errorBody = await response.json();
         backendDetail = errorBody?.detail;
       } catch {
-        // Response wasn't JSON — leave backendDetail null, friendly fallback kicks in.
+        // not JSON, friendly fallback handles it
       }
-      const friendlyMessage = getFriendlyErrorMessage(response.status, backendDetail);
-      throw new Error(friendlyMessage);
+      throw new Error(getFriendlyErrorMessage(response.status, backendDetail));
     }
 
     return response.json();
@@ -98,9 +93,6 @@ function Dashboard({ token, user, onLogout }) {
       const data = await submitClaimRequest(formData);
       setResult(data);
     } catch (err) {
-      // A raw "Failed to fetch" TypeError means the request never reached
-      // the server at all (dropped connection, flaky wifi) — worth one
-      // automatic retry before bothering the user with an error.
       const isNetworkError = err instanceof TypeError && err.message.includes('fetch');
 
       if (isNetworkError) {
@@ -123,279 +115,209 @@ function Dashboard({ token, user, onLogout }) {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
-        <div style={styles.headerLeft}>
-          <div style={styles.logoBadge}>+</div>
-          <div>
-            <div style={styles.headerEyebrow}>Medical Insurance Portal</div>
-            <h2 style={styles.headerTitle}>Welcome, {user.name}</h2>
-          </div>
-        </div>
-        <button onClick={onLogout} style={styles.logoutButton}>Log out</button>
-      </div>
+    <div style={styles.grid}>
+      <form onSubmit={handleSubmit} style={styles.card}>
+        <h3 style={styles.cardTitle}>Submit a New Claim</h3>
+        <p style={styles.cardSubtitle}>Upload all required documents. Drag and drop or click to browse — multiple pages supported.</p>
 
-      <div style={styles.grid}>
-        <form onSubmit={handleSubmit} style={styles.card}>
-          <h3 style={styles.cardTitle}>Submit a New Claim</h3>
-          <p style={styles.cardSubtitle}>Upload all required documents. Drag and drop or click to browse — multiple pages supported.</p>
-
-          <div style={styles.field}>
-            <label style={styles.label}>Claim Type</label>
-            <select
-              value={claimType}
-              onChange={(e) => setClaimType(e.target.value)}
-              style={styles.select}
-            >
-              <option value="reimbursement">Reimbursement</option>
-              <option value="pre_paid">Pre-paid</option>
-            </select>
-          </div>
-
-          {Object.entries(DOC_CONFIG).map(([docType, config]) => {
-            const files = filesByType[docType];
-            const isDragging = dragOver === docType;
-            return (
-              <div style={styles.field} key={docType}>
-                <label style={styles.label}>{config.label}</label>
-                <label
-                  htmlFor={`file-${docType}`}
-                  style={{
-                    ...styles.dropZone,
-                    ...(isDragging ? styles.dropZoneActive : {}),
-                    ...(files.length > 0 ? styles.dropZoneFilled : {}),
-                  }}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(docType); }}
-                  onDragLeave={() => setDragOver(null)}
-                  onDrop={(e) => handleDrop(docType, e)}
-                >
-                  <span style={styles.dropZoneIcon}>{config.icon}</span>
-                  <div style={styles.dropZoneText}>
-                    {files.length > 0 ? (
-                      <>
-                        <span style={styles.dropZoneFileName}>
-                          {files.length} file{files.length > 1 ? 's' : ''} selected
-                        </span>
-                        <span style={styles.dropZoneHint}>{files.map(f => f.name).join(', ')}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span style={styles.dropZoneFileName}>Drop files here or click to browse</span>
-                        <span style={styles.dropZoneHint}>JPG, PNG — multiple pages supported</span>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id={`file-${docType}`}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(docType, e.target.files)}
-                    style={styles.hiddenInput}
-                  />
-                </label>
-              </div>
-            );
-          })}
-
-          {error && <div style={styles.errorBox}>⚠ {error}</div>}
-
-          <button
-            type="submit"
-            style={{
-              ...styles.button,
-              ...(submitHover && !loading ? styles.buttonHover : {}),
-              opacity: loading ? 0.75 : 1,
-              cursor: loading ? 'default' : 'pointer',
-            }}
-            disabled={loading}
-            onMouseEnter={() => setSubmitHover(true)}
-            onMouseLeave={() => setSubmitHover(false)}
+        <div style={styles.field}>
+          <label style={styles.label}>Claim Type</label>
+          <select
+            value={claimType}
+            onChange={(e) => setClaimType(e.target.value)}
+            style={styles.select}
           >
-            {loading ? (
-              <span style={styles.buttonContent}>
-                <span style={styles.spinner} />
-                Processing claim...
-              </span>
-            ) : (
-              'Submit Claim'
-            )}
-          </button>
-        </form>
+            <option value="reimbursement">Reimbursement</option>
+            <option value="pre_paid">Pre-paid</option>
+          </select>
+        </div>
 
-        <div style={styles.resultsPanel}>
-          {!result && !loading && (
-            <div style={styles.emptyState}>
-              <div style={styles.emptyStateIcon}>📄</div>
-              <div style={styles.emptyStateText}>Submitted claim results will appear here</div>
-            </div>
-          )}
-
-          {loading && (
-            <div style={styles.emptyState}>
-              <span style={{ ...styles.spinner, ...styles.spinnerLarge }} />
-              <div style={styles.emptyStateText}>Reading documents and extracting data...</div>
-              <div style={{ ...styles.emptyStateText, fontSize: '0.85em', opacity: 0.7, marginTop: '4px' }}>
-                This usually takes 20–45 seconds — please don't close this tab
-              </div>
-            </div>
-          )}
-
-          {result && (
-            <div style={styles.card}>
-              <div style={styles.resultHeader}>
-                <h3 style={styles.cardTitle}>Claim #{result.claim_id}</h3>
-                <div style={{
-                  ...styles.statusBadge,
-                  ...(result.status === 'Needs Manual Review' ? styles.statusReview : styles.statusOk),
-                }}>
-                  {result.status === 'Needs Manual Review' ? '⚠ ' : '✓ '}
-                  {result.status}
-                </div>
-              </div>
-
-              <div style={styles.resultList}>
-                {result.extraction_summary.map((item, idx) => (
-                  <div key={idx} style={styles.resultRow}>
-                    <div style={styles.resultRowHeader}>
-                      <span style={styles.resultDocName}>
-                        {DOC_CONFIG[item.doc_type]?.icon} {DOC_CONFIG[item.doc_type]?.label || item.doc_type}
+        {Object.entries(DOC_CONFIG).map(([docType, config]) => {
+          const files = filesByType[docType];
+          const isDragging = dragOver === docType;
+          return (
+            <div style={styles.field} key={docType}>
+              <label style={styles.label}>{config.label}</label>
+              <label
+                htmlFor={`file-${docType}`}
+                style={{
+                  ...styles.dropZone,
+                  ...(isDragging ? styles.dropZoneActive : {}),
+                  ...(files.length > 0 ? styles.dropZoneFilled : {}),
+                }}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(docType); }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={(e) => handleDrop(docType, e)}
+              >
+                <span style={styles.dropZoneIcon}>{config.icon}</span>
+                <div style={styles.dropZoneText}>
+                  {files.length > 0 ? (
+                    <>
+                      <span style={styles.dropZoneFileName}>
+                        {files.length} file{files.length > 1 ? 's' : ''} selected
                       </span>
-                      {item.needs_review && <span style={styles.reviewTag}>Needs Review</span>}
-                    </div>
-                    {item.error ? (
-                      <div style={styles.resultError}>
-                        {item.error.includes('rate_limit_exceeded') || item.error.includes('429')
-                          ? 'This document could not be processed right now due to high demand. Please try again shortly.'
-                          : 'This document could not be read clearly. Please try uploading a clearer photo.'}
-                      </div>
-                    ) : (
-                      <div style={styles.resultDetails}>
-                        {item.items_found} item{item.items_found !== 1 ? 's' : ''} extracted
-                        {item.pages_processed ? ` · ${item.pages_processed} page(s) processed` : ''}
-                        {item.identity_flag && (
-                          <div style={styles.warningNote}>⚠ Identity fields could not be reliably verified</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      <span style={styles.dropZoneHint}>{files.map(f => f.name).join(', ')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={styles.dropZoneFileName}>Drop files here or click to browse</span>
+                      <span style={styles.dropZoneHint}>JPG, PNG — multiple pages supported</span>
+                    </>
+                  )}
+                </div>
+                <input
+                  id={`file-${docType}`}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => handleFileChange(docType, e.target.files)}
+                  style={styles.hiddenInput}
+                />
+              </label>
+            </div>
+          );
+        })}
+
+        {error && <div style={styles.errorBox}>⚠ {error}</div>}
+
+        <button
+          type="submit"
+          style={{
+            ...styles.button,
+            ...(submitHover && !loading ? styles.buttonHover : {}),
+            opacity: loading ? 0.75 : 1,
+            cursor: loading ? 'default' : 'pointer',
+          }}
+          disabled={loading}
+          onMouseEnter={() => setSubmitHover(true)}
+          onMouseLeave={() => setSubmitHover(false)}
+        >
+          {loading ? (
+            <span style={styles.buttonContent}>
+              <span style={styles.spinner} />
+              Processing claim...
+            </span>
+          ) : (
+            'Submit Claim'
+          )}
+        </button>
+      </form>
+
+      <div style={styles.resultsPanel}>
+        {!result && !loading && (
+          <div style={styles.emptyState}>
+            <div style={styles.emptyStateIcon}>📄</div>
+            <div style={styles.emptyStateText}>Submitted claim results will appear here</div>
+          </div>
+        )}
+
+        {loading && (
+          <div style={styles.emptyState}>
+            <span style={{ ...styles.spinner, ...styles.spinnerLarge }} />
+            <div style={styles.emptyStateText}>Reading documents and extracting data...</div>
+            <div style={{ ...styles.emptyStateText, fontSize: '0.85em', opacity: 0.7, marginTop: '4px' }}>
+              This usually takes 20–45 seconds — please don't close this tab
+            </div>
+          </div>
+        )}
+
+        {result && (
+          <div style={styles.card}>
+            <div style={styles.resultHeader}>
+              <h3 style={styles.cardTitle}>Claim #{result.claim_id}</h3>
+              <div style={{
+                ...styles.stamp,
+                ...(result.status === 'Needs Manual Review' ? styles.stampReview : styles.stampOk),
+              }}>
+                {result.status === 'Needs Manual Review' ? 'Review' : 'Processed'}
               </div>
+            </div>
 
-              {result.deduction_summary && (
-                <div style={styles.deductionSection}>
-                  <h4 style={styles.deductionTitle}>Claim Financial Summary</h4>
-
-                  <div style={styles.approvedBox}>
-                    <span style={styles.approvedLabel}>
-                      {result.deduction_summary.action_type === 'auto_deduct'
-                        ? 'Amount Approved for Reimbursement'
-                        : 'Amount to Be Returned'}
+            <div style={styles.resultList}>
+              {result.extraction_summary.map((item, idx) => (
+                <div key={idx} style={styles.resultRow}>
+                  <div style={styles.resultRowHeader}>
+                    <span style={styles.resultDocName}>
+                      {DOC_CONFIG[item.doc_type]?.icon} {DOC_CONFIG[item.doc_type]?.label || item.doc_type}
                     </span>
-                    <span style={styles.approvedAmount}>
-                      ${result.deduction_summary.total_unprescribed_amount.toFixed(2)}
-                    </span>
+                    {item.needs_review && <span style={styles.reviewTag}>Needs Review</span>}
                   </div>
-
-                  <div style={styles.summaryRow}>
-                    <span style={styles.summaryLabel}>Total Flagged (Unprescribed)</span>
-                    <span style={styles.summaryAmount}>
-                      ${result.deduction_summary.total_unprescribed_amount.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div style={styles.summaryRow}>
-                    <span style={styles.summaryLabel}>Action</span>
-                    <span style={styles.actionTag}>
-                      {result.deduction_summary.action_type === 'auto_deduct'
-                        ? 'Auto-deducted from reimbursement'
-                        : 'Return notice issued'}
-                    </span>
-                  </div>
-
-                  {result.deduction_summary.deductions.length > 0 && (
-                    <div style={styles.deductionList}>
-                      {result.deduction_summary.deductions.map((d, idx) => (
-                        <div key={idx} style={styles.deductionItem}>
-                          <div style={styles.deductionItemHeader}>
-                            <span style={styles.deductionItemName}>{d.item_name}</span>
-                            {d.has_price && (
-                              <span style={styles.deductionItemAmount}>-${d.amount.toFixed(2)}</span>
-                            )}
-                          </div>
-                          <div style={styles.deductionItemReason}>{d.reason}</div>
-                        </div>
-                      ))}
+                  {item.error ? (
+                    <div style={styles.resultError}>
+                      {item.error.includes('rate_limit_exceeded') || item.error.includes('429')
+                        ? 'This document could not be processed right now due to high demand. Please try again shortly.'
+                        : 'This document could not be read clearly. Please try uploading a clearer photo.'}
+                    </div>
+                  ) : (
+                    <div style={styles.resultDetails}>
+                      {item.items_found} item{item.items_found !== 1 ? 's' : ''} extracted
+                      {item.pages_processed ? ` · ${item.pages_processed} page(s) processed` : ''}
+                      {item.identity_flag && (
+                        <div style={styles.warningNote}>⚠ Identity fields could not be reliably verified</div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
-          )}
-        </div>
+
+            {result.deduction_summary && (
+              <div style={styles.deductionSection}>
+                <h4 style={styles.deductionTitle}>Claim Financial Summary</h4>
+
+                <div style={styles.approvedBox}>
+                  <span style={styles.approvedLabel}>
+                    {result.deduction_summary.action_type === 'auto_deduct'
+                      ? 'Amount Approved for Reimbursement'
+                      : 'Amount to Be Returned'}
+                  </span>
+                  <span style={styles.approvedAmount}>
+                    ${result.deduction_summary.total_unprescribed_amount.toFixed(2)}
+                  </span>
+                </div>
+
+                <div style={styles.summaryRow}>
+                  <span style={styles.summaryLabel}>Total Flagged (Unprescribed)</span>
+                  <span style={styles.summaryAmount}>
+                    ${result.deduction_summary.total_unprescribed_amount.toFixed(2)}
+                  </span>
+                </div>
+
+                <div style={styles.summaryRow}>
+                  <span style={styles.summaryLabel}>Action</span>
+                  <span style={styles.actionTag}>
+                    {result.deduction_summary.action_type === 'auto_deduct'
+                      ? 'Auto-deducted from reimbursement'
+                      : 'Return notice issued'}
+                  </span>
+                </div>
+
+                {result.deduction_summary.deductions.length > 0 && (
+                  <div style={styles.deductionList}>
+                    {result.deduction_summary.deductions.map((d, idx) => (
+                      <div key={idx} style={styles.deductionItem}>
+                        <div style={styles.deductionItemHeader}>
+                          <span style={styles.deductionItemName}>{d.item_name}</span>
+                          {d.has_price && (
+                            <span style={styles.deductionItemAmount}>-${d.amount.toFixed(2)}</span>
+                          )}
+                        </div>
+                        <div style={styles.deductionItemReason}>{d.reason}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 const styles = {
-  page: {
-    minHeight: '100vh',
-    background: 'linear-gradient(180deg, #f4f6f8 0%, #eef1f5 100%)',
-    padding: '32px 24px 60px',
-  },
-  header: {
-    maxWidth: '980px',
-    margin: '0 auto 28px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '14px',
-  },
-  logoBadge: {
-    width: '42px',
-    height: '42px',
-    borderRadius: '12px',
-    background: '#1f3864',
-    color: '#fff',
-    fontSize: '22px',
-    fontWeight: 'bold',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  headerEyebrow: {
-    fontSize: '11.5px',
-    fontWeight: 700,
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: '0.6px',
-    marginBottom: '3px',
-  },
-  headerTitle: {
-    fontSize: '21px',
-    fontWeight: 700,
-    color: '#111827',
-    margin: 0,
-  },
-  logoutButton: {
-    padding: '9px 18px',
-    fontSize: '13.5px',
-    fontWeight: 600,
-    background: '#ffffff',
-    color: '#374151',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
-    cursor: 'pointer',
-  },
   grid: {
-    maxWidth: '980px',
-    margin: '0 auto',
     display: 'grid',
     gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
     gap: '24px',
@@ -403,20 +325,21 @@ const styles = {
   },
   card: {
     background: '#ffffff',
-    borderRadius: '16px',
+    borderRadius: '10px',
     padding: '28px',
-    boxShadow: '0 4px 24px rgba(23, 43, 77, 0.07)',
-    border: '1px solid #eef0f3',
+    boxShadow: '0 1px 3px rgba(22, 50, 61, 0.06), 0 8px 24px rgba(22, 50, 61, 0.06)',
+    border: '1px solid #E7EBEE',
   },
   cardTitle: {
-    fontSize: '17px',
-    fontWeight: 700,
-    color: '#111827',
+    fontFamily: "'Fraunces', serif",
+    fontSize: '19px',
+    fontWeight: 600,
+    color: '#16232E',
     margin: '0 0 6px 0',
   },
   cardSubtitle: {
     fontSize: '13px',
-    color: '#6b7280',
+    color: '#667380',
     margin: '0 0 22px 0',
     lineHeight: 1.5,
   },
@@ -427,15 +350,18 @@ const styles = {
     marginBottom: '16px',
   },
   label: {
-    fontSize: '12.5px',
+    fontSize: '11.5px',
     fontWeight: 600,
-    color: '#374151',
+    color: '#48545F',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
   },
   select: {
     padding: '11px 12px',
     fontSize: '14px',
-    border: '1px solid #d1d5db',
-    borderRadius: '9px',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+    border: '1.5px solid #D5DCE1',
+    borderRadius: '6px',
     outline: 'none',
     background: '#fff',
   },
@@ -444,20 +370,20 @@ const styles = {
     alignItems: 'center',
     gap: '12px',
     padding: '14px 16px',
-    border: '1.5px dashed #cbd5e1',
-    borderRadius: '10px',
-    background: '#fafbfc',
+    border: '1.5px dashed #C7D0D6',
+    borderRadius: '8px',
+    background: '#FAFBFC',
     cursor: 'pointer',
     transition: 'all 0.15s',
   },
   dropZoneActive: {
-    borderColor: '#1f3864',
-    background: '#eef2f8',
+    borderColor: '#16323D',
+    background: '#EEF3F4',
   },
   dropZoneFilled: {
     borderStyle: 'solid',
-    borderColor: '#93c5fd',
-    background: '#f0f7ff',
+    borderColor: '#7FA8B0',
+    background: '#F0F6F7',
   },
   dropZoneIcon: {
     fontSize: '22px',
@@ -472,14 +398,14 @@ const styles = {
   dropZoneFileName: {
     fontSize: '13px',
     fontWeight: 600,
-    color: '#1f2937',
+    color: '#16232E',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
   dropZoneHint: {
     fontSize: '11.5px',
-    color: '#9ca3af',
+    color: '#9AA5AD',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -491,16 +417,17 @@ const styles = {
     width: '100%',
     marginTop: '8px',
     padding: '13px',
-    fontSize: '14.5px',
+    fontSize: '14px',
     fontWeight: 600,
-    background: '#1f3864',
+    letterSpacing: '0.3px',
+    background: '#16323D',
     color: 'white',
     border: 'none',
-    borderRadius: '9px',
+    borderRadius: '6px',
     transition: 'background 0.15s, transform 0.1s',
   },
   buttonHover: {
-    background: '#16294d',
+    background: '#0E252E',
   },
   buttonContent: {
     display: 'flex',
@@ -520,16 +447,16 @@ const styles = {
   spinnerLarge: {
     width: '32px',
     height: '32px',
-    border: '3px solid #e5e7eb',
-    borderTopColor: '#1f3864',
+    border: '3px solid #E7EBEE',
+    borderTopColor: '#16323D',
   },
   errorBox: {
-    background: '#fef2f2',
-    color: '#b91c1c',
+    background: '#FDF1EC',
+    color: '#9A3F12',
     fontSize: '13px',
     padding: '10px 12px',
-    borderRadius: '8px',
-    border: '1px solid #fecaca',
+    borderRadius: '6px',
+    border: '1px solid #F3CFB8',
     marginBottom: '16px',
   },
   resultsPanel: {
@@ -538,8 +465,8 @@ const styles = {
   },
   emptyState: {
     background: '#ffffff',
-    borderRadius: '16px',
-    border: '1px dashed #d1d5db',
+    borderRadius: '10px',
+    border: '1.5px dashed #D5DCE1',
     padding: '60px 24px',
     display: 'flex',
     flexDirection: 'column',
@@ -550,35 +477,40 @@ const styles = {
   },
   emptyStateIcon: {
     fontSize: '36px',
-    opacity: 0.5,
+    opacity: 0.4,
   },
   emptyStateText: {
     fontSize: '13.5px',
-    color: '#9ca3af',
+    color: '#9AA5AD',
   },
   resultHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '20px',
+    marginBottom: '22px',
   },
-  statusBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    fontSize: '12px',
-    fontWeight: 700,
-    padding: '6px 14px',
-    borderRadius: '999px',
+  // Signature element: claim status rendered like an ink stamp on a
+  // processed document — a slight rotation, double-ring border, and
+  // letter-spaced caps evoke an official "stamped" claim.
+  stamp: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '11px',
+    fontWeight: 600,
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    padding: '7px 16px',
+    borderRadius: '3px',
+    border: '2px double currentColor',
+    transform: 'rotate(-3deg)',
+    display: 'inline-block',
   },
-  statusOk: {
-    background: '#ecfdf5',
-    color: '#047857',
-    border: '1px solid #a7f3d0',
+  stampOk: {
+    color: '#2F8F6E',
+    background: 'rgba(47, 143, 110, 0.07)',
   },
-  statusReview: {
-    background: '#fffbeb',
-    color: '#b45309',
-    border: '1px solid #fde68a',
+  stampReview: {
+    color: '#B45309',
+    background: 'rgba(180, 83, 9, 0.07)',
   },
   resultList: {
     display: 'flex',
@@ -587,9 +519,9 @@ const styles = {
   },
   resultRow: {
     padding: '14px 16px',
-    borderRadius: '11px',
-    background: '#f9fafb',
-    border: '1px solid #eef0f3',
+    borderRadius: '8px',
+    background: '#FAFBFC',
+    border: '1px solid #EEF1F3',
   },
   resultRowHeader: {
     display: 'flex',
@@ -600,64 +532,68 @@ const styles = {
   resultDocName: {
     fontSize: '13.5px',
     fontWeight: 600,
-    color: '#111827',
+    color: '#16232E',
   },
   reviewTag: {
     fontSize: '10.5px',
     fontWeight: 700,
-    color: '#b45309',
-    background: '#fffbeb',
-    border: '1px solid #fde68a',
+    color: '#B45309',
+    background: '#FEF6EC',
+    border: '1px solid #F3D9AE',
     borderRadius: '999px',
     padding: '3px 9px',
   },
   resultDetails: {
     fontSize: '12.5px',
-    color: '#6b7280',
+    color: '#667380',
+    fontFamily: "'IBM Plex Mono', monospace",
   },
   resultError: {
     fontSize: '12.5px',
-    color: '#b91c1c',
+    color: '#9A3F12',
   },
   warningNote: {
     marginTop: '6px',
     fontSize: '12px',
-    color: '#b45309',
+    color: '#B45309',
     fontWeight: 500,
+    fontFamily: "'IBM Plex Sans', sans-serif",
   },
   deductionSection: {
     marginTop: '24px',
     paddingTop: '20px',
-    borderTop: '1px solid #eef0f3',
+    borderTop: '1px solid #EEF1F3',
   },
   deductionTitle: {
-    fontSize: '14px',
-    fontWeight: 700,
-    color: '#111827',
+    fontFamily: "'Fraunces', serif",
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#16232E',
     margin: '0 0 14px 0',
   },
   approvedBox: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    background: '#f0f7ff',
-    border: '1px solid #bfdbfe',
-    borderRadius: '10px',
+    background: '#EEF6F4',
+    border: '1px solid #C3E0D8',
+    borderRadius: '8px',
     padding: '16px',
     marginBottom: '16px',
   },
   approvedLabel: {
-    fontSize: '12px',
+    fontSize: '11.5px',
     fontWeight: 600,
-    color: '#1f3864',
+    color: '#16323D',
     textTransform: 'uppercase',
-    letterSpacing: '0.4px',
-    marginBottom: '4px',
+    letterSpacing: '0.5px',
+    marginBottom: '6px',
   },
   approvedAmount: {
-    fontSize: '26px',
-    fontWeight: 700,
-    color: '#1f3864',
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '27px',
+    fontWeight: 600,
+    color: '#16323D',
   },
   summaryRow: {
     display: 'flex',
@@ -667,18 +603,19 @@ const styles = {
   },
   summaryLabel: {
     fontSize: '13px',
-    color: '#6b7280',
+    color: '#667380',
   },
   summaryAmount: {
-    fontSize: '15px',
-    fontWeight: 700,
-    color: '#b91c1c',
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#9A3F12',
   },
   actionTag: {
     fontSize: '12px',
     fontWeight: 600,
-    color: '#1f3864',
-    background: '#eef2f8',
+    color: '#16323D',
+    background: '#EEF3F4',
     padding: '4px 10px',
     borderRadius: '999px',
   },
@@ -690,9 +627,9 @@ const styles = {
   },
   deductionItem: {
     padding: '10px 12px',
-    background: '#fef2f2',
-    border: '1px solid #fecaca',
-    borderRadius: '8px',
+    background: '#FDF1EC',
+    border: '1px solid #F3CFB8',
+    borderRadius: '7px',
   },
   deductionItemHeader: {
     display: 'flex',
@@ -702,16 +639,17 @@ const styles = {
   deductionItemName: {
     fontSize: '12.5px',
     fontWeight: 600,
-    color: '#111827',
+    color: '#16232E',
   },
   deductionItemAmount: {
+    fontFamily: "'IBM Plex Mono', monospace",
     fontSize: '12.5px',
-    fontWeight: 700,
-    color: '#b91c1c',
+    fontWeight: 600,
+    color: '#9A3F12',
   },
   deductionItemReason: {
     fontSize: '11.5px',
-    color: '#9ca3af',
+    color: '#9AA5AD',
     marginTop: '2px',
   },
 };

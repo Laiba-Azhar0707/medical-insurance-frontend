@@ -4,22 +4,17 @@
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #f4f6f8;
-  color: #1a1f2e;
-}
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #f4f6f8;
-  color: #1a1f2e;
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #F4F6F8;
+  color: #16232E;
 }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+:focus-visible {
+  outline: 2px solid #16323D;
+  outline-offset: 2px;
 }

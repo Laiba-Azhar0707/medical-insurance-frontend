@@ -1,5 +1,30 @@
 import { useState } from 'react';
 
+// A small repeating tile of subtle medical-themed line-art doodles,
+// same idea as WhatsApp's chat wallpaper — scattered icons at low
+// opacity so it reads as texture, not decoration.
+const DOODLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<g fill="none" stroke="#8FE0C9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5">
+<g transform="translate(30,25) rotate(-18)"><path d="M0 -12 L0 12 M-12 0 L12 0" /></g>
+<g transform="translate(110,15) rotate(24)"><rect x="-10" y="-13" width="20" height="26" rx="2" /><rect x="-4" y="-17" width="8" height="6" rx="1" /><path d="M-6 -6 L6 -6 M-6 0 L6 0" /></g>
+<g transform="translate(200,40) rotate(-35)"><rect x="-12" y="-6" width="24" height="12" rx="6" /><path d="M-4 -6 L4 6" /></g>
+<g transform="translate(270,20) rotate(12)"><path d="M0 -9 C0 -15 -7 -15 -7 -9 C-7 -3 0 1 0 5 C0 1 7 -3 7 -9 C7 -15 0 -15 0 -9 Z" /></g>
+<g transform="translate(15,110) rotate(40)"><path d="M-14 -10 C-14 2 -4 8 6 2 C11 -1 11 -10 6 -10" /><circle cx="6" cy="-12" r="4" /></g>
+<g transform="translate(95,130) rotate(-12)"><rect x="-11" y="-14" width="22" height="28" rx="2" /><path d="M-6 -6 L6 -6 M-6 0 L6 0 M-6 6 L2 6" /></g>
+<g transform="translate(180,105) rotate(55)"><path d="M0 -8 L0 8 M-8 0 L8 0" /></g>
+<g transform="translate(255,125) rotate(-8)"><path d="M-9 -13 L9 -13 L9 13 L4 9 L0 13 L-4 9 L-9 13 Z" /><path d="M-5 -7 L5 -7 M-5 -1 L5 -1" /></g>
+<g transform="translate(40,215) rotate(-28)"><rect x="-12" y="-6" width="24" height="12" rx="6" /><path d="M-4 -6 L4 6" /></g>
+<g transform="translate(120,235) rotate(20)"><path d="M0 -6 C0 -10 -5 -10 -5 -6 C-5 -2 0 1 0 4 C0 1 5 -2 5 -6 C5 -10 0 -10 0 -6 Z" /></g>
+<g transform="translate(205,215) rotate(-50)"><rect x="-9" y="-12" width="18" height="24" rx="2" /><rect x="-4" y="-16" width="8" height="6" rx="1" /><path d="M-5 -6 L5 -6 M-5 0 L5 0" /></g>
+<g transform="translate(280,235) rotate(15)"><path d="M0 -9 L0 9 M-9 0 L9 0" /></g>
+<g transform="translate(70,290) rotate(-15)"><path d="M-11 -9 C-11 1 -3 6 4 1 C8 -1 8 -9 4 -9" /><circle cx="4" cy="-11" r="3.5" /></g>
+<g transform="translate(160,275) rotate(33)"><rect x="-10" y="-13" width="20" height="26" rx="2" /><rect x="-4" y="-17" width="8" height="6" rx="1" /><path d="M-6 -6 L6 -6 M-6 0 L6 0" /></g>
+<g transform="translate(245,290) rotate(-22)"><path d="M0 -7 C0 -11 -5.5 -11 -5.5 -7 C-5.5 -3 0 0 0 3 C0 0 5.5 -3 5.5 -7 C5.5 -11 0 -11 0 -7 Z" /></g>
+</g>
+</svg>`;;
+
+const doodleDataUrl = `data:image/svg+xml,${encodeURIComponent(DOODLE_SVG)}`;
+
 function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,10 +59,16 @@ function Login({ onLoginSuccess }) {
 
   return (
     <div style={styles.page}>
+      <div style={styles.doodleLayer} />
+
       <div style={styles.card}>
-        <div style={styles.logoCircle}>+</div>
+        <div style={styles.crestRow}>
+          <div style={styles.crest}>
+            <span style={styles.crestPlus}>+</span>
+          </div>
+        </div>
         <h1 style={styles.title}>Medical Insurance Portal</h1>
-        <p style={styles.subtitle}>Sign in to submit and track your claims</p>
+        <p style={styles.subtitle}>Sign in to submit and track your claims 💙</p>
 
         <form onSubmit={handleSubmit} style={styles.form}>
           <div style={styles.field}>
@@ -84,12 +115,13 @@ function Login({ onLoginSuccess }) {
                 Signing in...
               </span>
             ) : (
-              'Sign in'
+              'Sign in →'
             )}
           </button>
         </form>
 
-        <p style={styles.footnote}>Secured with JWT authentication</p>
+        <div style={styles.divider} />
+        <p style={styles.footnote}>🔒 secured with JWT authentication</p>
       </div>
     </div>
   );
@@ -101,40 +133,69 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: 'linear-gradient(135deg, #eef2f7 0%, #dde7f0 100%)',
+    background: 'radial-gradient(circle at 20% 20%, #1D4552 0%, #16323D 45%, #101F27 100%)',
     padding: '20px',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  doodleLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundImage: `url("${doodleDataUrl}")`,
+    backgroundRepeat: 'repeat',
+    backgroundSize: '200px 200px',
+    zIndex: 0,
   },
   card: {
-    width: '380px',
+    width: '400px',
     background: '#ffffff',
-    borderRadius: '16px',
-    padding: '40px 36px',
-    boxShadow: '0 10px 40px rgba(23, 43, 77, 0.10)',
+    borderRadius: '28px',
+    padding: '48px 40px 36px',
+    boxShadow: '0 30px 70px rgba(9, 25, 32, 0.4)',
     textAlign: 'center',
+    position: 'relative',
+    zIndex: 1,
   },
-  logoCircle: {
-    width: '52px',
-    height: '52px',
-    borderRadius: '14px',
-    background: '#1f3864',
+  crestRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginBottom: '20px',
+  },
+  crest: {
+    width: '58px',
+    height: '58px',
+    borderRadius: '18px',
+    background: 'linear-gradient(145deg, #1D4552 0%, #16323D 100%)',
     color: '#fff',
-    fontSize: '26px',
-    fontWeight: 'bold',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    margin: '0 auto 20px',
+    boxShadow: '0 8px 18px rgba(22, 50, 61, 0.35)',
+    transform: 'rotate(-4deg)',
+  },
+  crestPlus: {
+    fontFamily: "'Fraunces', serif",
+    fontSize: '26px',
+    fontWeight: 600,
+    lineHeight: 1,
+    transform: 'rotate(4deg)',
+    display: 'inline-block',
   },
   title: {
-    fontSize: '20px',
-    fontWeight: 700,
-    margin: '0 0 6px 0',
-    color: '#111827',
+    fontFamily: "'Fraunces', serif",
+    fontSize: '23px',
+    fontWeight: 600,
+    margin: '0 0 8px 0',
+    color: '#16232E',
+    letterSpacing: '-0.2px',
   },
   subtitle: {
     fontSize: '13.5px',
-    color: '#6b7280',
-    margin: '0 0 28px 0',
+    color: '#667380',
+    margin: '0 0 30px 0',
   },
   form: {
     display: 'flex',
@@ -148,30 +209,38 @@ const styles = {
     gap: '6px',
   },
   label: {
-    fontSize: '12.5px',
+    fontSize: '11.5px',
     fontWeight: 600,
-    color: '#374151',
+    color: '#48545F',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
   },
   input: {
-    padding: '11px 13px',
+    padding: '13px 15px',
     fontSize: '14px',
-    border: '1px solid #d1d5db',
-    borderRadius: '9px',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+    border: '1.5px solid #E3E8EB',
+    borderRadius: '14px',
     outline: 'none',
+    background: '#FAFBFC',
+    transition: 'border-color 0.15s, background 0.15s',
   },
   button: {
-    marginTop: '6px',
-    padding: '12px',
+    marginTop: '8px',
+    padding: '14px',
     fontSize: '14.5px',
     fontWeight: 600,
-    background: '#1f3864',
+    letterSpacing: '0.2px',
+    background: '#16323D',
     color: 'white',
     border: 'none',
-    borderRadius: '9px',
-    transition: 'background 0.15s',
+    borderRadius: '999px',
+    transition: 'transform 0.15s, box-shadow 0.15s, background 0.15s',
   },
   buttonHover: {
-    background: '#16294d',
+    background: '#0E252E',
+    transform: 'translateY(-2px)',
+    boxShadow: '0 10px 24px rgba(22, 50, 61, 0.3)',
   },
   buttonContent: {
     display: 'flex',
@@ -189,17 +258,23 @@ const styles = {
     animation: 'spin 0.7s linear infinite',
   },
   errorBox: {
-    background: '#fef2f2',
-    color: '#b91c1c',
+    background: '#FDF1EC',
+    color: '#9A3F12',
     fontSize: '13px',
-    padding: '10px 12px',
-    borderRadius: '8px',
-    border: '1px solid #fecaca',
+    padding: '11px 13px',
+    borderRadius: '12px',
+    border: '1px solid #F3CFB8',
+  },
+  divider: {
+    height: '1px',
+    background: '#EEF1F3',
+    margin: '28px 0 16px',
   },
   footnote: {
-    marginTop: '22px',
     fontSize: '11px',
-    color: '#9ca3af',
+    fontWeight: 500,
+    color: '#9AA5AD',
+    margin: 0,
   },
 };
 
