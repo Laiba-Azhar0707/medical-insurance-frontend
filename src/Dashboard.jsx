@@ -7,6 +7,26 @@ const DOC_CONFIG = {
   consultation_receipt: { label: 'Consultation Receipt', icon: '🩺' },
 };
 
+// Maps technical failures to messages a non-technical user can actually act on.
+// Falls back to a generic message rather than ever showing raw error text.
+function getFriendlyErrorMessage(status, backendDetail) {
+  if (status === 400 && backendDetail) {
+    // These are our own backend's validation messages (e.g. "upload at
+    // least one bill") — already written to be user-facing, safe to show.
+    return backendDetail;
+  }
+  if (status === 401) {
+    return 'Your session has expired. Please log out and log back in.';
+  }
+  if (status === 413) {
+    return 'One or more files are too large. Please use smaller images or fewer pages.';
+  }
+  if (status >= 500) {
+    return "Something went wrong while processing your claim. This isn't something you did — please try again in a moment.";
+  }
+  return 'We couldn\'t submit your claim. Please check your documents and try again.';
+}
+
 function Dashboard({ token, user, onLogout }) {
   const [claimType, setClaimType] = useState('reimbursement');
   const [filesByType, setFilesByType] = useState({
@@ -40,7 +60,18 @@ function Dashboard({ token, user, onLogout }) {
       body: formData,
     });
 
-    if (!response.ok) throw new Error('Claim submission failed');
+    if (!response.ok) {
+      let backendDetail = null;
+      try {
+        const errorBody = await response.json();
+        backendDetail = errorBody?.detail;
+      } catch {
+        // Response wasn't JSON — leave backendDetail null, friendly fallback kicks in.
+      }
+      const friendlyMessage = getFriendlyErrorMessage(response.status, backendDetail);
+      throw new Error(friendlyMessage);
+    }
+
     return response.json();
   };
 
@@ -67,9 +98,9 @@ function Dashboard({ token, user, onLogout }) {
       const data = await submitClaimRequest(formData);
       setResult(data);
     } catch (err) {
-      // "Failed to fetch" is a network-level error (dropped connection,
-      // flaky wifi, corporate proxy timeout) rather than a real server
-      // error — worth one automatic retry before bothering the user.
+      // A raw "Failed to fetch" TypeError means the request never reached
+      // the server at all (dropped connection, flaky wifi) — worth one
+      // automatic retry before bothering the user with an error.
       const isNetworkError = err instanceof TypeError && err.message.includes('fetch');
 
       if (isNetworkError) {
@@ -77,7 +108,11 @@ function Dashboard({ token, user, onLogout }) {
           const retryData = await submitClaimRequest(formData);
           setResult(retryData);
         } catch (retryErr) {
-          setError('Claim submission failed after retrying. This can happen on slow or unstable connections — please try again.');
+          setError(
+            retryErr.message.includes('fetch')
+              ? 'We couldn\'t reach the server after retrying. Please check your connection and try again.'
+              : retryErr.message
+          );
         }
       } else {
         setError(err.message);
@@ -229,7 +264,11 @@ function Dashboard({ token, user, onLogout }) {
                       {item.needs_review && <span style={styles.reviewTag}>Needs Review</span>}
                     </div>
                     {item.error ? (
-                      <div style={styles.resultError}>{item.error}</div>
+                      <div style={styles.resultError}>
+                        {item.error.includes('rate_limit_exceeded') || item.error.includes('429')
+                          ? 'This document could not be processed right now due to high demand. Please try again shortly.'
+                          : 'This document could not be read clearly. Please try uploading a clearer photo.'}
+                      </div>
                     ) : (
                       <div style={styles.resultDetails}>
                         {item.items_found} item{item.items_found !== 1 ? 's' : ''} extracted
