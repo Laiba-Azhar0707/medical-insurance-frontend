@@ -7,8 +7,9 @@ import Dashboard from './Dashboard';
 import ClaimHistory from './ClaimHistory';
 import AdminPanel from './AdminPanel';
 
-function ProtectedRoute({ token, children }) {
+function ProtectedRoute({ token, user, children }) {
   if (!token) return <Navigate to="/" replace />;
+  if (user?.role === 'admin') return <Navigate to="/admin" replace />;
   return children;
 }
 
@@ -43,7 +44,7 @@ function App() {
 
         <Route
           element={
-            <ProtectedRoute token={token}>
+            <ProtectedRoute token={token} user={user}>
               <Layout user={user} onLogout={handleLogout} />
             </ProtectedRoute>
           }
