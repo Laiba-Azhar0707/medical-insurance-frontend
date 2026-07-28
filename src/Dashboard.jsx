@@ -1,11 +1,13 @@
 import { useState } from 'react';
 
 const DOC_CONFIG = {
-  prescription: { label: "Doctor's Prescription", icon: '📋' },
-  medicine_bill: { label: 'Medicine Bill', icon: '💊' },
-  lab_bill: { label: 'Lab Bill', icon: '🧪' },
-  consultation_receipt: { label: 'Consultation Receipt', icon: '🩺' },
+  prescription: { label: "Doctor's Prescription", icon: '📋', required: false },
+  medicine_bill: { label: 'Medicine Bill', icon: '💊', required: false },
+  lab_bill: { label: 'Lab Bill', icon: '🧪', required: false },
+  consultation_receipt: { label: 'Consultation Receipt', icon: '🩺', required: false },
 };
+
+const BILL_TYPES = ['medicine_bill', 'lab_bill', 'consultation_receipt'];
 
 function getFriendlyErrorMessage(status, backendDetail) {
   if (status === 400 && backendDetail) {
@@ -75,9 +77,12 @@ function Dashboard({ token, user }) {
     setError('');
     setResult(null);
 
-    const missing = Object.entries(filesByType).filter(([, files]) => files.length === 0);
-    if (missing.length > 0) {
-      setError(`Please upload at least one page for: ${missing.map(([k]) => DOC_CONFIG[k].label).join(', ')}`);
+    // Matches the backend rule exactly: prescription is optional, but at
+    // least one bill type (medicine, lab, or consultation) is required —
+    // a claim with nothing billed has nothing for the system to process.
+    const hasAnyBill = BILL_TYPES.some((docType) => filesByType[docType].length > 0);
+    if (!hasAnyBill) {
+      setError('Please upload at least one bill: a medicine bill, lab bill, or consultation receipt.');
       return;
     }
 
@@ -118,7 +123,7 @@ function Dashboard({ token, user }) {
     <div style={styles.grid}>
       <form onSubmit={handleSubmit} style={styles.card}>
         <h3 style={styles.cardTitle}>Submit a New Claim</h3>
-        <p style={styles.cardSubtitle}>Upload all required documents. Drag and drop or click to browse — multiple pages supported.</p>
+        <p style={styles.cardSubtitle}>Upload the documents you have. A prescription is optional, but at least one bill (medicine, lab, or consultation) is required.</p>
 
         <div style={styles.field}>
           <label style={styles.label}>Claim Type</label>
@@ -137,7 +142,10 @@ function Dashboard({ token, user }) {
           const isDragging = dragOver === docType;
           return (
             <div style={styles.field} key={docType}>
-              <label style={styles.label}>{config.label}</label>
+              <label style={styles.label}>
+                {config.label}
+                <span style={styles.optionalTag}>optional</span>
+              </label>
               <label
                 htmlFor={`file-${docType}`}
                 style={{
@@ -161,7 +169,7 @@ function Dashboard({ token, user }) {
                   ) : (
                     <>
                       <span style={styles.dropZoneFileName}>Drop files here or click to browse</span>
-                      <span style={styles.dropZoneHint}>JPG, PNG — multiple pages supported</span>
+                      <span style={styles.dropZoneHint}>JPG, PNG, PDF — multiple pages supported</span>
                     </>
                   )}
                 </div>
@@ -169,7 +177,7 @@ function Dashboard({ token, user }) {
                   id={`file-${docType}`}
                   type="file"
                   multiple
-                  accept="image/*"
+                  accept="image/*,application/pdf"
                   onChange={(e) => handleFileChange(docType, e.target.files)}
                   style={styles.hiddenInput}
                 />
@@ -355,6 +363,19 @@ const styles = {
     color: '#48545F',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  optionalTag: {
+    fontSize: '9.5px',
+    fontWeight: 600,
+    color: '#9AA5AD',
+    background: '#F1F4F5',
+    padding: '2px 8px',
+    borderRadius: '999px',
+    textTransform: 'none',
+    letterSpacing: '0.2px',
   },
   select: {
     padding: '11px 12px',
@@ -489,9 +510,6 @@ const styles = {
     alignItems: 'center',
     marginBottom: '22px',
   },
-  // Signature element: claim status rendered like an ink stamp on a
-  // processed document — a slight rotation, double-ring border, and
-  // letter-spaced caps evoke an official "stamped" claim.
   stamp: {
     fontFamily: "'IBM Plex Mono', monospace",
     fontSize: '11px',
