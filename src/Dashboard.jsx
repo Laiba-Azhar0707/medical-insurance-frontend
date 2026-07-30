@@ -38,6 +38,13 @@ function Dashboard({ token, user }) {
   const [result, setResult] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const [submitHover, setSubmitHover] = useState(false);
+  // Bumped whenever the form resets — used as part of each file input's
+  // `key` so React fully remounts them. Clearing filesByType state alone
+  // doesn't clear the browser's native <input type="file"> value, so
+  // without this a re-selected file with the same name wouldn't fire
+  // onChange and the drop zone would look stale.
+  const [formKey, setFormKey] = useState(0);
+  const [newClaimHover, setNewClaimHover] = useState(false);
 
   const handleFileChange = (docType, fileList) => {
     setFilesByType((prev) => ({ ...prev, [docType]: Array.from(fileList) }));
@@ -119,6 +126,19 @@ function Dashboard({ token, user }) {
     }
   };
 
+  const handleNewClaim = () => {
+    setResult(null);
+    setError('');
+    setClaimType('reimbursement');
+    setFilesByType({
+      prescription: [],
+      medicine_bill: [],
+      lab_bill: [],
+      consultation_receipt: [],
+    });
+    setFormKey((prev) => prev + 1);
+  };
+
   return (
     <div style={styles.grid}>
       <form onSubmit={handleSubmit} style={styles.card}>
@@ -174,6 +194,7 @@ function Dashboard({ token, user }) {
                   )}
                 </div>
                 <input
+                  key={`${docType}-${formKey}`}
                   id={`file-${docType}`}
                   type="file"
                   multiple
@@ -233,11 +254,25 @@ function Dashboard({ token, user }) {
           <div style={styles.card}>
             <div style={styles.resultHeader}>
               <h3 style={styles.cardTitle}>Claim #{result.claim_id}</h3>
-              <div style={{
-                ...styles.stamp,
-                ...(result.status === 'Needs Manual Review' ? styles.stampReview : styles.stampOk),
-              }}>
-                {result.status === 'Needs Manual Review' ? 'Review' : 'Processed'}
+              <div style={styles.resultHeaderRight}>
+                <div style={{
+                  ...styles.stamp,
+                  ...(result.status === 'Needs Manual Review' ? styles.stampReview : styles.stampOk),
+                }}>
+                  {result.status === 'Needs Manual Review' ? 'Review' : 'Processed'}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNewClaim}
+                  style={{
+                    ...styles.newClaimButton,
+                    ...(newClaimHover ? styles.newClaimButtonHover : {}),
+                  }}
+                  onMouseEnter={() => setNewClaimHover(true)}
+                  onMouseLeave={() => setNewClaimHover(false)}
+                >
+                  + New Claim
+                </button>
               </div>
             </div>
 
@@ -509,6 +544,27 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '22px',
+  },
+  resultHeaderRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  newClaimButton: {
+    fontSize: '12.5px',
+    fontWeight: 600,
+    color: '#16323D',
+    background: '#fff',
+    border: '1.5px solid #C7D0D6',
+    borderRadius: '6px',
+    padding: '8px 14px',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    whiteSpace: 'nowrap',
+  },
+  newClaimButtonHover: {
+    background: '#EEF3F4',
+    borderColor: '#16323D',
   },
   stamp: {
     fontFamily: "'IBM Plex Mono', monospace",
