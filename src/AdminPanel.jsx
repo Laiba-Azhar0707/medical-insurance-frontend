@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 function formatDate(isoString) {
   if (!isoString) return '—';
   const date = new Date(isoString);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function formatCurrency(amount) {
+  if (amount == null) return '—';
+  return `₨${Math.abs(amount).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const DOC_LABELS = {
@@ -29,6 +34,8 @@ function AdminPanel({ token }) {
   const [claimsLoading, setClaimsLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState(null);
   const [userFilter, setUserFilter] = useState('all');
+  const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
+  const claimsListRef = useRef(null);
 
   const [detailClaim, setDetailClaim] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -193,8 +200,17 @@ function AdminPanel({ token }) {
   const pendingCount = claims?.filter((c) => c.admin_status === 'Pending Review').length ?? 0;
   const flaggedCount = claims?.filter((c) => c.admin_status === 'Pending Review' && c.status === 'Needs Manual Review').length ?? 0;
 
+  const handleNotificationClick = () => {
+    setShowFlaggedOnly(true);
+    setTab('claims');
+    setTimeout(() => {
+      claimsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+
   const visibleClaims = (claims ?? [])
     .filter((c) => userFilter === 'all' || String(c.user_id) === userFilter)
+    .filter((c) => !showFlaggedOnly || (c.admin_status === 'Pending Review' && c.status === 'Needs Manual Review'))
     .slice()
     .sort((a, b) => claimPriority(a) - claimPriority(b) || new Date(b.submitted_at) - new Date(a.submitted_at));
 
@@ -226,7 +242,7 @@ function AdminPanel({ token }) {
       {tab === 'claims' && (
         <div>
           {!claimsLoading && !claimsError && pendingCount > 0 && (
-            <div style={styles.notificationBanner}>
+            <div style={styles.notificationBanner} onClick={handleNotificationClick} role="button" tabIndex={0}>
               <span style={styles.notificationIcon}>🔔</span>
               <span style={styles.notificationText}>
                 <strong>{pendingCount}</strong> claim{pendingCount !== 1 ? 's' : ''} awaiting your review
@@ -234,6 +250,14 @@ function AdminPanel({ token }) {
                   <> — <strong style={{ color: '#B45309' }}>{flaggedCount}</strong> flagged by AI for manual attention</>
                 )}
               </span>
+              <span style={styles.notificationArrow}>View →</span>
+            </div>
+          )}
+
+          {showFlaggedOnly && (
+            <div style={styles.activeFilterPill}>
+              Showing AI-flagged claims only
+              <button onClick={() => setShowFlaggedOnly(false)} style={styles.clearFilterButton}>Clear ✕</button>
             </div>
           )}
 
@@ -272,12 +296,14 @@ function AdminPanel({ token }) {
           {!claimsLoading && !claimsError && claims?.length > 0 && visibleClaims.length === 0 && (
             <div style={styles.emptyState}>
               <div style={styles.emptyStateIcon}>🔍</div>
-              <div style={styles.emptyStateText}>No claims from this user.</div>
+              <div style={styles.emptyStateText}>
+                {showFlaggedOnly ? 'No AI-flagged claims right now.' : 'No claims from this user.'}
+              </div>
             </div>
           )}
 
           {!claimsLoading && !claimsError && visibleClaims.length > 0 && (
-            <div style={styles.list}>
+            <div style={styles.list} ref={claimsListRef}>
               {visibleClaims.map((claim) => {
                 const isPriority = claim.admin_status === 'Pending Review' && claim.status === 'Needs Manual Review';
                 return (
@@ -303,7 +329,7 @@ function AdminPanel({ token }) {
                       <div style={styles.metaRow}>
                         <span style={styles.metaLabel}>Amount</span>
                         <span style={styles.metaAmount}>
-                          {claim.approved_amount != null ? `$${Math.abs(claim.approved_amount).toFixed(2)}` : '—'}
+                          {formatCurrency(claim.approved_amount)}
                         </span>
                       </div>
                     </div>
@@ -476,7 +502,7 @@ function AdminPanel({ token }) {
                   <div style={styles.metaRow}>
                     <span style={styles.metaLabel}>Amount</span>
                     <span style={styles.metaAmount}>
-                      {detailClaim.approved_amount != null ? `$${Math.abs(detailClaim.approved_amount).toFixed(2)}` : '—'}
+                      {formatCurrency(detailClaim.approved_amount)}
                     </span>
                   </div>
                 </div>
@@ -496,7 +522,7 @@ function AdminPanel({ token }) {
                               <span style={styles.itemMeta}>
                                 {item.dosage ? `${item.dosage} · ` : ''}
                                 {item.quantity ? `qty ${item.quantity} · ` : ''}
-                                {item.price != null ? `$${item.price.toFixed(2)}` : ''}
+                                {item.price != null ? formatCurrency(item.price) : ''}
                               </span>
                             </div>
                           ))}
@@ -519,7 +545,7 @@ function AdminPanel({ token }) {
                         <div key={idx} style={styles.deductionItem}>
                           <div style={styles.deductionItemHeader}>
                             <span style={styles.deductionItemName}>{d.item_name || 'Item'}</span>
-                            <span style={styles.deductionItemAmount}>-${d.amount.toFixed(2)}</span>
+                            <span style={styles.deductionItemAmount}>-{formatCurrency(d.amount)}</span>
                           </div>
                           <div style={styles.deductionItemReason}>{d.reason}</div>
                         </div>
@@ -631,6 +657,8 @@ const styles = {
     borderRadius: '10px',
     padding: '13px 16px',
     marginBottom: '16px',
+    cursor: 'pointer',
+    transition: 'background 0.15s, border-color 0.15s',
   },
   notificationIcon: {
     fontSize: '16px',
@@ -639,6 +667,38 @@ const styles = {
   notificationText: {
     fontSize: '13px',
     color: '#7A4A0F',
+    flex: 1,
+  },
+  notificationArrow: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#B45309',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  activeFilterPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '10px',
+    fontSize: '12.5px',
+    fontWeight: 600,
+    color: '#16323D',
+    background: '#EEF3F4',
+    border: '1px solid #D5DCE1',
+    borderRadius: '999px',
+    padding: '7px 8px 7px 16px',
+    marginBottom: '16px',
+  },
+  clearFilterButton: {
+    fontSize: '11.5px',
+    fontWeight: 600,
+    color: '#48545F',
+    background: '#ffffff',
+    border: '1px solid #D5DCE1',
+    borderRadius: '999px',
+    padding: '5px 12px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
   },
   filterRow: {
     display: 'flex',

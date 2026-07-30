@@ -9,6 +9,11 @@ const DOC_CONFIG = {
 
 const BILL_TYPES = ['medicine_bill', 'lab_bill', 'consultation_receipt'];
 
+function formatCurrency(amount) {
+  if (amount == null) return '—';
+  return `₨${Math.abs(amount).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function getFriendlyErrorMessage(status, backendDetail) {
   if (status === 400 && backendDetail) {
     return backendDetail;
@@ -315,14 +320,14 @@ function Dashboard({ token, user }) {
                       : 'Amount to Be Returned'}
                   </span>
                   <span style={styles.approvedAmount}>
-                    ${result.deduction_summary.total_unprescribed_amount.toFixed(2)}
+                    {formatCurrency(result.deduction_summary.total_unprescribed_amount)}
                   </span>
                 </div>
 
                 <div style={styles.summaryRow}>
                   <span style={styles.summaryLabel}>Total Flagged (Unprescribed)</span>
                   <span style={styles.summaryAmount}>
-                    ${result.deduction_summary.total_unprescribed_amount.toFixed(2)}
+                    {formatCurrency(result.deduction_summary.total_unprescribed_amount)}
                   </span>
                 </div>
 
@@ -342,7 +347,7 @@ function Dashboard({ token, user }) {
                         <div style={styles.deductionItemHeader}>
                           <span style={styles.deductionItemName}>{d.item_name}</span>
                           {d.has_price && (
-                            <span style={styles.deductionItemAmount}>-${d.amount.toFixed(2)}</span>
+                            <span style={styles.deductionItemAmount}>-{formatCurrency(d.amount)}</span>
                           )}
                         </div>
                         <div style={styles.deductionItemReason}>{d.reason}</div>
