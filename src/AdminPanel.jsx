@@ -6,6 +6,21 @@ function formatDate(isoString) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+const DOC_LABELS = {
+  prescription: { label: "Doctor's Prescription", icon: '📋' },
+  medicine_bill: { label: 'Medicine Bill', icon: '💊' },
+  lab_bill: { label: 'Lab Bill', icon: '🧪' },
+  consultation_receipt: { label: 'Consultation Receipt', icon: '🩺' },
+};
+
+// Claims needing attention float to the top: AI-flagged + undecided first,
+// then everything else undecided, then already-reviewed claims last.
+function claimPriority(claim) {
+  if (claim.admin_status === 'Pending Review' && claim.status === 'Needs Manual Review') return 0;
+  if (claim.admin_status === 'Pending Review') return 1;
+  return 2;
+}
+
 function AdminPanel({ token }) {
   const [tab, setTab] = useState('claims');
 
@@ -13,6 +28,11 @@ function AdminPanel({ token }) {
   const [claimsError, setClaimsError] = useState('');
   const [claimsLoading, setClaimsLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState(null);
+  const [userFilter, setUserFilter] = useState('all');
+
+  const [detailClaim, setDetailClaim] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
 
   const [users, setUsers] = useState(null);
   const [usersError, setUsersError] = useState('');
@@ -73,11 +93,33 @@ function AdminPanel({ token }) {
       if (!response.ok) throw new Error('Review failed');
       const updated = await response.json();
       setClaims((prev) => prev.map((c) => (c.claim_id === updated.claim_id ? updated : c)));
+      setDetailClaim((prev) => (prev && prev.claim_id === updated.claim_id ? { ...prev, ...updated } : prev));
     } catch (err) {
       setClaimsError('We couldn\'t update that claim. Please try again.');
     } finally {
       setReviewingId(null);
     }
+  };
+
+  const handleOpenDetail = async (claimId) => {
+    setDetailLoading(true);
+    setDetailError('');
+    setDetailClaim(null);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/claims/${claimId}/detail`, { headers: authHeaders });
+      if (!response.ok) throw new Error('We couldn\'t load that claim\'s details. Please try again.');
+      const data = await response.json();
+      setDetailClaim(data);
+    } catch (err) {
+      setDetailError(err.message);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailClaim(null);
+    setDetailError('');
   };
 
   const handleCreateUser = async (e) => {
@@ -148,6 +190,14 @@ function AdminPanel({ token }) {
     }
   };
 
+  const pendingCount = claims?.filter((c) => c.admin_status === 'Pending Review').length ?? 0;
+  const flaggedCount = claims?.filter((c) => c.admin_status === 'Pending Review' && c.status === 'Needs Manual Review').length ?? 0;
+
+  const visibleClaims = (claims ?? [])
+    .filter((c) => userFilter === 'all' || String(c.user_id) === userFilter)
+    .slice()
+    .sort((a, b) => claimPriority(a) - claimPriority(b) || new Date(b.submitted_at) - new Date(a.submitted_at));
+
   return (
     <div>
       <div style={styles.pageHeader}>
@@ -161,6 +211,9 @@ function AdminPanel({ token }) {
           style={{ ...styles.tabButton, ...(tab === 'claims' ? styles.tabButtonActive : {}) }}
         >
           Claim Review
+          {pendingCount > 0 && (
+            <span style={{ ...styles.tabBadge, ...(tab === 'claims' ? styles.tabBadgeActive : {}) }}>{pendingCount}</span>
+          )}
         </button>
         <button
           onClick={() => setTab('users')}
@@ -172,6 +225,34 @@ function AdminPanel({ token }) {
 
       {tab === 'claims' && (
         <div>
+          {!claimsLoading && !claimsError && pendingCount > 0 && (
+            <div style={styles.notificationBanner}>
+              <span style={styles.notificationIcon}>🔔</span>
+              <span style={styles.notificationText}>
+                <strong>{pendingCount}</strong> claim{pendingCount !== 1 ? 's' : ''} awaiting your review
+                {flaggedCount > 0 && (
+                  <> — <strong style={{ color: '#B45309' }}>{flaggedCount}</strong> flagged by AI for manual attention</>
+                )}
+              </span>
+            </div>
+          )}
+
+          {!claimsLoading && !claimsError && claims?.length > 0 && (
+            <div style={styles.filterRow}>
+              <label style={styles.filterLabel}>Filter by user</label>
+              <select
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="all">All Users</option>
+                {users?.map((u) => (
+                  <option key={u.id} value={String(u.id)}>{u.name} ({u.email})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {claimsLoading && (
             <div style={styles.emptyState}>
               <span style={{ ...styles.spinner, ...styles.spinnerLarge }} />
@@ -188,65 +269,67 @@ function AdminPanel({ token }) {
             </div>
           )}
 
-          {!claimsLoading && !claimsError && claims?.length > 0 && (
+          {!claimsLoading && !claimsError && claims?.length > 0 && visibleClaims.length === 0 && (
+            <div style={styles.emptyState}>
+              <div style={styles.emptyStateIcon}>🔍</div>
+              <div style={styles.emptyStateText}>No claims from this user.</div>
+            </div>
+          )}
+
+          {!claimsLoading && !claimsError && visibleClaims.length > 0 && (
             <div style={styles.list}>
-              {claims.map((claim) => (
-                <div key={claim.claim_id} style={styles.card}>
-                  <div style={styles.cardTop}>
-                    <div>
-                      <div style={styles.claimId}>Claim #{claim.claim_id}</div>
-                      <div style={styles.claimDate}>{formatDate(claim.submitted_at)} · {claim.user_name} ({claim.user_email})</div>
-                    </div>
-                    <div style={{
-                      ...styles.stamp,
-                      ...(claim.status === 'Needs Manual Review' ? styles.stampReview : styles.stampOk),
-                    }}>
-                      {claim.status === 'Needs Manual Review' ? 'Review' : claim.status === 'In Progress' ? 'Pending' : 'Processed'}
-                    </div>
-                  </div>
-
-                  <div style={styles.cardBody}>
-                    <div style={styles.metaRow}>
-                      <span style={styles.metaLabel}>Claim Type</span>
-                      <span style={styles.metaValue}>{claim.claim_type === 'pre_paid' ? 'Pre-paid' : 'Reimbursement'}</span>
-                    </div>
-                    <div style={styles.metaRow}>
-                      <span style={styles.metaLabel}>Amount</span>
-                      <span style={styles.metaAmount}>
-                        {claim.approved_amount != null ? `$${Math.abs(claim.approved_amount).toFixed(2)}` : '—'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={styles.reviewRow}>
-                    {claim.admin_status === 'Pending Review' ? (
-                      <>
-                        <button
-                          onClick={() => handleReview(claim.claim_id, 'approved')}
-                          disabled={reviewingId === claim.claim_id}
-                          style={styles.approveButton}
-                        >
-                          {reviewingId === claim.claim_id ? 'Saving...' : 'Approve'}
-                        </button>
-                        <button
-                          onClick={() => handleReview(claim.claim_id, 'rejected')}
-                          disabled={reviewingId === claim.claim_id}
-                          style={styles.rejectButton}
-                        >
-                          {reviewingId === claim.claim_id ? 'Saving...' : 'Reject'}
-                        </button>
-                      </>
-                    ) : (
-                      <span style={{
-                        ...styles.adminTag,
-                        ...(claim.admin_status === 'Approved' ? styles.adminApproved : styles.adminRejected),
+              {visibleClaims.map((claim) => {
+                const isPriority = claim.admin_status === 'Pending Review' && claim.status === 'Needs Manual Review';
+                return (
+                  <div key={claim.claim_id} style={{ ...styles.card, ...(isPriority ? styles.cardPriority : {}) }}>
+                    <div style={styles.cardTop}>
+                      <div>
+                        <div style={styles.claimId}>Claim #{claim.claim_id}</div>
+                        <div style={styles.claimDate}>{formatDate(claim.submitted_at)} · {claim.user_name} ({claim.user_email})</div>
+                      </div>
+                      <div style={{
+                        ...styles.stamp,
+                        ...(claim.status === 'Needs Manual Review' ? styles.stampReview : styles.stampOk),
                       }}>
-                        {claim.admin_status}
-                      </span>
-                    )}
+                        {claim.status === 'Needs Manual Review' ? 'Review' : claim.status === 'In Progress' ? 'Pending' : 'Processed'}
+                      </div>
+                    </div>
+
+                    <div style={styles.cardBody}>
+                      <div style={styles.metaRow}>
+                        <span style={styles.metaLabel}>Claim Type</span>
+                        <span style={styles.metaValue}>{claim.claim_type === 'pre_paid' ? 'Pre-paid' : 'Reimbursement'}</span>
+                      </div>
+                      <div style={styles.metaRow}>
+                        <span style={styles.metaLabel}>Amount</span>
+                        <span style={styles.metaAmount}>
+                          {claim.approved_amount != null ? `$${Math.abs(claim.approved_amount).toFixed(2)}` : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={styles.reviewRow}>
+                      {claim.admin_status === 'Pending Review' ? (
+                        <button onClick={() => handleOpenDetail(claim.claim_id)} style={styles.reviewButton}>
+                          Review Claim →
+                        </button>
+                      ) : (
+                        <>
+                          <span style={{
+                            ...styles.adminTag,
+                            ...(claim.admin_status === 'Approved' ? styles.adminApproved : styles.adminRejected),
+                          }}>
+                            {claim.admin_status}
+                          </span>
+                          <button onClick={() => handleOpenDetail(claim.claim_id)} style={styles.viewDetailsButton}>
+                            View Details
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -353,6 +436,130 @@ function AdminPanel({ token }) {
           </div>
         </div>
       )}
+
+      {(detailLoading || detailError || detailClaim) && (
+        <div style={styles.modalOverlay} onClick={closeDetail}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <button style={styles.modalClose} onClick={closeDetail}>✕</button>
+
+            {detailLoading && (
+              <div style={styles.emptyState}>
+                <span style={{ ...styles.spinner, ...styles.spinnerLarge }} />
+                <div style={styles.emptyStateText}>Loading claim details...</div>
+              </div>
+            )}
+
+            {detailError && <div style={styles.errorBox}>⚠ {detailError}</div>}
+
+            {detailClaim && (
+              <>
+                <div style={styles.modalHeader}>
+                  <div>
+                    <h3 style={styles.modalTitle}>Claim #{detailClaim.claim_id}</h3>
+                    <div style={styles.claimDate}>
+                      {formatDate(detailClaim.submitted_at)} · {detailClaim.user_name} ({detailClaim.user_email})
+                    </div>
+                  </div>
+                  <div style={{
+                    ...styles.stamp,
+                    ...(detailClaim.status === 'Needs Manual Review' ? styles.stampReview : styles.stampOk),
+                  }}>
+                    {detailClaim.status === 'Needs Manual Review' ? 'Review' : detailClaim.status === 'In Progress' ? 'Pending' : 'Processed'}
+                  </div>
+                </div>
+
+                <div style={styles.modalMetaRow}>
+                  <div style={styles.metaRow}>
+                    <span style={styles.metaLabel}>Claim Type</span>
+                    <span style={styles.metaValue}>{detailClaim.claim_type === 'pre_paid' ? 'Pre-paid' : 'Reimbursement'}</span>
+                  </div>
+                  <div style={styles.metaRow}>
+                    <span style={styles.metaLabel}>Amount</span>
+                    <span style={styles.metaAmount}>
+                      {detailClaim.approved_amount != null ? `$${Math.abs(detailClaim.approved_amount).toFixed(2)}` : '—'}
+                    </span>
+                  </div>
+                </div>
+
+                <h4 style={styles.modalSectionTitle}>Documents & Extracted Items</h4>
+                <div style={styles.docList}>
+                  {detailClaim.documents?.map((doc, idx) => (
+                    <div key={idx} style={styles.docCard}>
+                      <div style={styles.docCardHeader}>
+                        {DOC_LABELS[doc.doc_type]?.icon} {DOC_LABELS[doc.doc_type]?.label || doc.doc_type}
+                      </div>
+                      {doc.items?.length > 0 ? (
+                        <div style={styles.itemTable}>
+                          {doc.items.map((item) => (
+                            <div key={item.id} style={styles.itemRow}>
+                              <span style={styles.itemName}>{item.item_name}</span>
+                              <span style={styles.itemMeta}>
+                                {item.dosage ? `${item.dosage} · ` : ''}
+                                {item.quantity ? `qty ${item.quantity} · ` : ''}
+                                {item.price != null ? `$${item.price.toFixed(2)}` : ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={styles.docNoItems}>No items extracted from this document.</div>
+                      )}
+                    </div>
+                  ))}
+                  {(!detailClaim.documents || detailClaim.documents.length === 0) && (
+                    <div style={styles.docNoItems}>No documents on file for this claim.</div>
+                  )}
+                </div>
+
+                {detailClaim.deductions?.length > 0 && (
+                  <>
+                    <h4 style={styles.modalSectionTitle}>Flagged Items</h4>
+                    <div style={styles.deductionList}>
+                      {detailClaim.deductions.map((d, idx) => (
+                        <div key={idx} style={styles.deductionItem}>
+                          <div style={styles.deductionItemHeader}>
+                            <span style={styles.deductionItemName}>{d.item_name || 'Item'}</span>
+                            <span style={styles.deductionItemAmount}>-${d.amount.toFixed(2)}</span>
+                          </div>
+                          <div style={styles.deductionItemReason}>{d.reason}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                <div style={styles.modalFooter}>
+                  {detailClaim.admin_status === 'Pending Review' ? (
+                    <>
+                      <button
+                        onClick={() => handleReview(detailClaim.claim_id, 'approved')}
+                        disabled={reviewingId === detailClaim.claim_id}
+                        style={styles.approveButton}
+                      >
+                        {reviewingId === detailClaim.claim_id ? 'Saving...' : 'Approve Claim'}
+                      </button>
+                      <button
+                        onClick={() => handleReview(detailClaim.claim_id, 'rejected')}
+                        disabled={reviewingId === detailClaim.claim_id}
+                        style={styles.rejectButton}
+                      >
+                        {reviewingId === detailClaim.claim_id ? 'Saving...' : 'Reject Claim'}
+                      </button>
+                    </>
+                  ) : (
+                    <span style={{
+                      ...styles.adminTag,
+                      ...(detailClaim.admin_status === 'Approved' ? styles.adminApproved : styles.adminRejected),
+                    }}>
+                      Already {detailClaim.admin_status}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -380,7 +587,7 @@ const styles = {
     padding: '4px',
     borderRadius: '999px',
     border: '1px solid #E7EBEE',
-    marginBottom: '24px',
+    marginBottom: '20px',
   },
   tabButton: {
     padding: '9px 20px',
@@ -392,10 +599,69 @@ const styles = {
     borderRadius: '999px',
     cursor: 'pointer',
     fontFamily: "'IBM Plex Sans', sans-serif",
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
   },
   tabButtonActive: {
     background: '#16323D',
     color: '#ffffff',
+  },
+  tabBadge: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '10.5px',
+    fontWeight: 700,
+    background: '#FDF1EC',
+    color: '#9A3F12',
+    borderRadius: '999px',
+    padding: '2px 7px',
+    minWidth: '18px',
+    textAlign: 'center',
+  },
+  tabBadgeActive: {
+    background: 'rgba(255,255,255,0.2)',
+    color: '#ffffff',
+  },
+  notificationBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    background: '#FEF6EC',
+    border: '1px solid #F3D9AE',
+    borderRadius: '10px',
+    padding: '13px 16px',
+    marginBottom: '16px',
+  },
+  notificationIcon: {
+    fontSize: '16px',
+    flexShrink: 0,
+  },
+  notificationText: {
+    fontSize: '13px',
+    color: '#7A4A0F',
+  },
+  filterRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    marginBottom: '18px',
+  },
+  filterLabel: {
+    fontSize: '11.5px',
+    fontWeight: 600,
+    color: '#48545F',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  filterSelect: {
+    padding: '9px 13px',
+    fontSize: '13px',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+    border: '1.5px solid #E3E8EB',
+    borderRadius: '10px',
+    outline: 'none',
+    background: '#fff',
+    minWidth: '220px',
   },
   list: {
     display: 'grid',
@@ -408,6 +674,10 @@ const styles = {
     padding: '20px',
     boxShadow: '0 1px 3px rgba(22, 50, 61, 0.06), 0 8px 24px rgba(22, 50, 61, 0.06)',
     border: '1px solid #E7EBEE',
+  },
+  cardPriority: {
+    background: '#FFFBF3',
+    border: '1px solid #F3D9AE',
   },
   cardTop: {
     display: 'flex',
@@ -482,10 +752,34 @@ const styles = {
     paddingTop: '14px',
     borderTop: '1px solid #EEF1F3',
   },
-  approveButton: {
+  reviewButton: {
+    flex: 1,
+    padding: '10px',
+    fontSize: '12.5px',
+    fontWeight: 600,
+    background: '#16323D',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  viewDetailsButton: {
     flex: 1,
     padding: '9px',
-    fontSize: '12.5px',
+    fontSize: '12px',
+    fontWeight: 600,
+    background: '#fff',
+    color: '#48545F',
+    border: '1.5px solid #E3E8EB',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    fontFamily: "'IBM Plex Sans', sans-serif",
+  },
+  approveButton: {
+    flex: 1,
+    padding: '11px',
+    fontSize: '13px',
     fontWeight: 600,
     background: '#EEF6F4',
     color: '#2F8F6E',
@@ -496,8 +790,8 @@ const styles = {
   },
   rejectButton: {
     flex: 1,
-    padding: '9px',
-    fontSize: '12.5px',
+    padding: '11px',
+    fontSize: '13px',
     fontWeight: 600,
     background: '#FDF1EC',
     color: '#9A3F12',
@@ -722,6 +1016,157 @@ const styles = {
     borderRadius: '8px',
     border: '1px solid #C3E0D8',
     marginBottom: '12px',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(16, 31, 39, 0.55)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px',
+    zIndex: 1000,
+  },
+  modal: {
+    background: '#ffffff',
+    borderRadius: '16px',
+    padding: '32px',
+    width: '100%',
+    maxWidth: '640px',
+    maxHeight: '85vh',
+    overflowY: 'auto',
+    position: 'relative',
+    boxShadow: '0 30px 70px rgba(9, 25, 32, 0.4)',
+  },
+  modalClose: {
+    position: 'absolute',
+    top: '20px',
+    right: '20px',
+    width: '30px',
+    height: '30px',
+    borderRadius: '50%',
+    border: 'none',
+    background: '#F1F4F5',
+    color: '#48545F',
+    fontSize: '13px',
+    cursor: 'pointer',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '18px',
+    paddingRight: '30px',
+  },
+  modalTitle: {
+    fontFamily: "'Fraunces', serif",
+    fontSize: '21px',
+    fontWeight: 600,
+    color: '#16232E',
+    margin: '0 0 4px 0',
+  },
+  modalMetaRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    padding: '14px 16px',
+    background: '#FAFBFC',
+    border: '1px solid #EEF1F3',
+    borderRadius: '10px',
+    marginBottom: '22px',
+  },
+  modalSectionTitle: {
+    fontFamily: "'Fraunces', serif",
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#16232E',
+    margin: '0 0 12px 0',
+  },
+  docList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginBottom: '22px',
+  },
+  docCard: {
+    background: '#FAFBFC',
+    border: '1px solid #EEF1F3',
+    borderRadius: '10px',
+    padding: '14px 16px',
+  },
+  docCardHeader: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#16232E',
+    marginBottom: '10px',
+  },
+  itemTable: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '7px',
+  },
+  itemRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  itemName: {
+    fontSize: '12.5px',
+    color: '#16232E',
+  },
+  itemMeta: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '11.5px',
+    color: '#667380',
+    whiteSpace: 'nowrap',
+  },
+  docNoItems: {
+    fontSize: '12px',
+    color: '#9AA5AD',
+    fontStyle: 'italic',
+  },
+  deductionList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginBottom: '22px',
+  },
+  deductionItem: {
+    padding: '10px 12px',
+    background: '#FDF1EC',
+    border: '1px solid #F3CFB8',
+    borderRadius: '7px',
+  },
+  deductionItemHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  deductionItemName: {
+    fontSize: '12.5px',
+    fontWeight: 600,
+    color: '#16232E',
+  },
+  deductionItemAmount: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: '12.5px',
+    fontWeight: 600,
+    color: '#9A3F12',
+  },
+  deductionItemReason: {
+    fontSize: '11.5px',
+    color: '#9AA5AD',
+    marginTop: '2px',
+  },
+  modalFooter: {
+    display: 'flex',
+    gap: '10px',
+    paddingTop: '18px',
+    borderTop: '1px solid #EEF1F3',
   },
 };
 
