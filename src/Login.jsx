@@ -119,9 +119,6 @@ function Login({ onLoginSuccess }) {
             )}
           </button>
         </form>
-
-        <div style={styles.divider} />
-        <p style={styles.footnote}>🔒 secured with JWT authentication</p>
       </div>
     </div>
   );
@@ -264,17 +261,6 @@ const styles = {
     padding: '11px 13px',
     borderRadius: '12px',
     border: '1px solid #F3CFB8',
-  },
-  divider: {
-    height: '1px',
-    background: '#EEF1F3',
-    margin: '28px 0 16px',
-  },
-  footnote: {
-    fontSize: '11px',
-    fontWeight: 500,
-    color: '#9AA5AD',
-    margin: 0,
   },
 };
 
